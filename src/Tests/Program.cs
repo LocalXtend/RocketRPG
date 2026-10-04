@@ -120,6 +120,7 @@ public partial class Program
         TestMultiRemoteKeys();
         TestMultiTitle();
         TestChatColorCooldown();
+        TestDeltaUpdate();
         TestAssetCatalog();
         TestChoiceVote();
         TestRtpResolver();

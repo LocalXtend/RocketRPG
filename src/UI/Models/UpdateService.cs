@@ -218,6 +218,87 @@ public class UpdateService
         }
     }
 
+    /// <summary>빠른 업데이트에 쓰는 포터블 zip (설치판도 같은 파일을 씀)</summary>
+    public static AssetInfo? PortableAsset(ReleaseInfo release) =>
+        release.Assets?.FirstOrDefault(a => a.Name.Contains("portable", StringComparison.OrdinalIgnoreCase) && a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && a.Size > 0);
+
+    public static string AppDir() => Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+
+    /// <summary>새 버전에서 바뀐 파일을 풀어 둘 임시 폴더</summary>
+    public static string StagingDir(string tag) => Path.Combine(Path.GetTempPath(), "RocketRPG_update_" + string.Concat(tag.Where(char.IsLetterOrDigit)));
+
+    static bool CanWrite(string dir)
+    {
+        try
+        {
+            string probe = Path.Combine(dir, $".rr_write_{Guid.NewGuid():N}");
+            File.WriteAllBytes(probe, []);
+            File.Delete(probe);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// 풀어 둔 파일(staging)을 RocketRPG가 꺼진 뒤 앱 폴더에 덮어쓰고 다시 켭니다 (robocopy: 바뀐 파일만이라 몇 초면 끝남).
+    /// 앱 폴더에 쓸 수 없으면(Program Files 설치) 관리자 권한을 한 번 묻습니다. 다시 켜는 RocketRPG는 관리자 권한 없이 켜집니다.
+    /// 시작했으면 true (호출한 쪽이 앱을 끔), 사용자가 권한을 거절하는 등으로 시작하지 못하면 false.
+    /// </summary>
+    public static bool ApplyStagedUpdate(string staging, string version)
+    {
+        string appDir = AppDir();
+        bool elevate = !CanWrite(appDir);
+        string scriptPath = Path.Combine(Path.GetTempPath(), "RocketRPG_apply_update.ps1");
+        const string script = @"# RocketRPG update: copy changed files after RocketRPG exits, then start it again
+param([string]$Staging, [string]$TargetDir, [int]$ProcessId, [string]$Version, [int]$Elevated)
+$log = Join-Path $env:TEMP 'RocketRPG_update.log'
+function Log($s) { try { Add-Content -Path $log -Value ((Get-Date -Format 's') + ' ' + $s) -Encoding UTF8 } catch { } }
+if ($ProcessId -gt 0) { try { Wait-Process -Id $ProcessId -Timeout 30 -ErrorAction SilentlyContinue } catch { } }
+$ok = $false
+for ($i = 0; $i -lt 5 -and -not $ok; $i++) {
+    & robocopy $Staging $TargetDir /E /IS /IT /R:5 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+    $ok = $LASTEXITCODE -lt 8
+    if (-not $ok) { Log ('robocopy exit ' + $LASTEXITCODE); Start-Sleep -Seconds 2 }
+}
+if ($ok) {
+    Log ('updated to ' + $Version)
+    foreach ($root in 'HKLM:', 'HKCU:') {
+        $k = $root + '\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\RocketRPG'
+        try {
+            $loc = (Get-ItemProperty -Path $k -ErrorAction Stop).InstallLocation
+            if ($loc -and ($loc.TrimEnd('\') -ieq $TargetDir.TrimEnd('\'))) { Set-ItemProperty -Path $k -Name DisplayVersion -Value $Version -ErrorAction SilentlyContinue }
+        } catch { }
+    }
+    Remove-Item -Recurse -Force $Staging -ErrorAction SilentlyContinue
+}
+$exe = Join-Path $TargetDir 'RocketRPG.exe'
+if ($Elevated -eq 1) { Start-Process -FilePath 'explorer.exe' -ArgumentList ('""' + $exe + '""') }
+else { Start-Process -FilePath $exe -WorkingDirectory $TargetDir }
+Remove-Item -Force $PSCommandPath -ErrorAction SilentlyContinue
+";
+        File.WriteAllText(scriptPath, script, new System.Text.UTF8Encoding(true));
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\" -Staging \"{staging}\" -TargetDir \"{appDir}\" " +
+                        $"-ProcessId {Environment.ProcessId} -Version \"{version.TrimStart('v', 'V')}\" -Elevated {(elevate ? 1 : 0)}",
+            UseShellExecute = true,
+            WindowStyle = ProcessWindowStyle.Hidden,
+            Verb = elevate ? "runas" : "",
+        };
+        try
+        {
+            Process.Start(psi);
+            UiLog.Write($"update: applying {version} from {staging} (elevated {elevate})");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            UiLog.Write($"update: could not start the updater ({ex.Message})");
+            return false;
+        }
+    }
+
     public static void ApplyInstallerUpdate(string installerPath)
     {
         var psi = new ProcessStartInfo(installerPath, "/update") { UseShellExecute = true };

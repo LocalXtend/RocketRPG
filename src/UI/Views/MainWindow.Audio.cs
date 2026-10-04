@@ -163,6 +163,27 @@ public partial class MainWindow
             var confirm = new UpdateNotesWindow(this, result.Message, result.ReleaseNotes, "지금 다운로드하고 업데이트를 진행하시겠습니까?");
             if (confirm.ShowDialog() != true) return;
 
+            // 빠른 업데이트: 포터블 zip에서 바뀐 파일만 받아 두었다가, 앱을 끈 뒤 덮어쓰고 다시 켬 (설치판도 같음)
+            if (UpdateService.PortableAsset(result.Release) is { } portable)
+            {
+                string staging = UpdateService.StagingDir(result.Release.TagName);
+                int changed = 0;
+                var stageWnd = new UpdateProgressWindow("업데이트 준비 중...", async (report, ct) =>
+                {
+                    await Task.Run(() => { if (Directory.Exists(staging)) Directory.Delete(staging, true); }, ct);
+                    changed = await DeltaUpdate.StageAsync(portable.DownloadUrl, portable.Size, UpdateService.AppDir(), staging, report, ct);
+                }) { Owner = this };
+                if (stageWnd.ShowDialog() != true) return;
+                if (changed == 0)
+                {
+                    MessageBox.Show(this, "이미 새 버전과 같은 파일을 쓰고 있습니다.", "RocketRPG 업데이트", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                if (UpdateService.ApplyStagedUpdate(staging, result.Release.TagName)) Application.Current.Shutdown();
+                else MessageBox.Show(this, "업데이트를 적용하지 못했습니다. 관리자 권한을 허용했는지 확인해 주세요.", "업데이트 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             var progressWnd = new UpdateProgressWindow(
                 result.TargetAsset.DownloadUrl,
                 result.TargetAsset.Name,

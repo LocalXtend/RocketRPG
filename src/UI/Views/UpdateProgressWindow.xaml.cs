@@ -6,94 +6,98 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using RocketRPG.Models;
 
 namespace RocketRPG.Views;
 
+/// <summary>업데이트 진행 창: 받는 동안 진행 막대를 보여 주고, 취소할 수 있습니다.</summary>
 public partial class UpdateProgressWindow : Window
 {
-    readonly string _downloadUrl;
-    readonly string _fileName;
-    readonly long _expectedSize;
+    readonly Func<DeltaUpdate.Progress, CancellationToken, Task> _job;
     readonly CancellationTokenSource _cts = new();
     string? _tempFilePath;
+    long _lastUiTick;
 
     public string? DownloadedFilePath { get; private set; }
     public bool IsCompleted { get; private set; }
 
+    /// <summary>파일 하나를 그대로 받음 (빠른 업데이트를 쓸 수 없는 릴리즈)</summary>
     public UpdateProgressWindow(string downloadUrl, string fileName, long expectedSize)
     {
         InitializeComponent();
-        _downloadUrl = downloadUrl;
-        _fileName = fileName;
-        _expectedSize = expectedSize;
-        StatusText.Text = $"다운로드 중: {_fileName}";
+        StatusText.Text = $"다운로드 중: {fileName}";
+        _job = (report, ct) => DownloadAsync(downloadUrl, fileName, expectedSize, report, ct);
+        Loaded += OnLoaded;
+    }
+
+    /// <summary>임의의 작업 (빠른 업데이트: 바뀐 파일만 받아 풀기)</summary>
+    public UpdateProgressWindow(string title, Func<DeltaUpdate.Progress, CancellationToken, Task> job)
+    {
+        InitializeComponent();
+        StatusText.Text = title;
+        _job = job;
         Loaded += OnLoaded;
     }
 
     async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        await StartDownloadAsync();
-    }
-
-    async Task StartDownloadAsync()
-    {
-        _tempFilePath = Path.Combine(Path.GetTempPath(), _fileName);
         try
         {
-            using var client = new HttpClient();
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("RocketRPG");
-
-            using var resp = await client.GetAsync(_downloadUrl, HttpCompletionOption.ResponseHeadersRead, _cts.Token);
-            resp.EnsureSuccessStatusCode();
-
-            long totalBytes = resp.Content.Headers.ContentLength ?? _expectedSize;
-            if (totalBytes <= 0)
-            {
-                DownloadBar.IsIndeterminate = true;
-            }
-
-            using var stream = await resp.Content.ReadAsStreamAsync(_cts.Token);
-            using var fs = new FileStream(_tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-            byte[] buffer = new byte[81920];
-            long totalRead = 0;
-            int read;
-
-            while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, _cts.Token)) > 0)
-            {
-                await fs.WriteAsync(buffer, 0, read, _cts.Token);
-                totalRead += read;
-
-                if (totalBytes > 0)
-                {
-                    double pct = (double)totalRead / totalBytes * 100.0;
-                    DownloadBar.Value = Math.Min(100, pct);
-                    DetailText.Text = $"{(totalRead / 1048576.0):0.0} MB / {(totalBytes / 1048576.0):0.0} MB ({pct:0.0}%)";
-                }
-                else
-                {
-                    DetailText.Text = $"{(totalRead / 1048576.0):0.0} MB 다운로드됨";
-                }
-            }
-
+            await _job(Report, _cts.Token);
             IsCompleted = true;
-            DownloadedFilePath = _tempFilePath;
             DialogResult = true;
-            Close();
         }
         catch (OperationCanceledException)
         {
             CleanupPartialFile();
             DialogResult = false;
-            Close();
         }
         catch (Exception ex)
         {
             CleanupPartialFile();
-            MessageBox.Show(this, $"다운로드 중 오류가 발생했습니다:\n{ex.Message}", "다운로드 실패", MessageBoxButton.OK, MessageBoxImage.Error);
+            UiLog.Write($"update: failed {ex}");
+            MessageBox.Show(this, $"업데이트를 받는 중 오류가 발생했습니다:\n{ex.Message}", "다운로드 실패", MessageBoxButton.OK, MessageBoxImage.Error);
             DialogResult = false;
-            Close();
         }
+    }
+
+    /// <summary>진행 상황 (자주 불려도 화면은 0.1초에 한 번만 바꿈)</summary>
+    void Report(string status, long done, long total)
+    {
+        long now = Environment.TickCount64;
+        if (done < total && now - _lastUiTick < 100 && total > 0) return;
+        _lastUiTick = now;
+        StatusText.Text = status;
+        DownloadBar.IsIndeterminate = total <= 0;
+        if (total > 0)
+        {
+            double pct = Math.Min(100, (double)done / total * 100.0);
+            DownloadBar.Value = pct;
+            DetailText.Text = $"{done / 1048576.0:0.0} MB / {total / 1048576.0:0.0} MB ({pct:0}%)";
+        }
+        else DetailText.Text = done > 0 ? $"{done / 1048576.0:0.0} MB" : "";
+    }
+
+    async Task DownloadAsync(string url, string fileName, long expectedSize, DeltaUpdate.Progress report, CancellationToken ct)
+    {
+        _tempFilePath = Path.Combine(Path.GetTempPath(), fileName);
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("RocketRPG");
+        using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+        resp.EnsureSuccessStatusCode();
+        long totalBytes = resp.Content.Headers.ContentLength ?? expectedSize;
+        await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+        await using var fs = new FileStream(_tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 20, true);
+        byte[] buffer = new byte[1 << 20];
+        long totalRead = 0;
+        int read;
+        while ((read = await stream.ReadAsync(buffer, ct)) > 0)
+        {
+            await fs.WriteAsync(buffer.AsMemory(0, read), ct);
+            totalRead += read;
+            report($"다운로드 중: {fileName}", totalRead, totalBytes);
+        }
+        DownloadedFilePath = _tempFilePath;
     }
 
     void CleanupPartialFile()
@@ -104,17 +108,10 @@ public partial class UpdateProgressWindow : Window
         }
     }
 
-    void OnCancelClick(object sender, RoutedEventArgs e)
-    {
-        _cts.Cancel();
-    }
+    void OnCancelClick(object sender, RoutedEventArgs e) => _cts.Cancel();
 
     void OnWindowClosing(object? sender, CancelEventArgs e)
     {
-        if (!IsCompleted)
-        {
-            _cts.Cancel();
-            CleanupPartialFile();
-        }
+        if (!IsCompleted) _cts.Cancel();
     }
 }
