@@ -62,6 +62,12 @@ public partial class MainWindow
             core.Settings.AreBrowserAcceleratorKeysEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
             core.Settings.IsPinchZoomEnabled = false;
+            // Chromium은 마이크·카메라 권한이 없는 페이지에서 기본 경로(공유기) 주소 하나만 연결 후보로 냅니다.
+            // 그러면 ZeroTier·Tailscale·Radmin VPN·Hamachi 같은 가상 LAN 주소가 빠져 가상 LAN으로는 연결되지 않았습니다 (1.0.0).
+            // 권한 상태만 '허용'으로 두면 모든 네트워크 주소를 냅니다. 페이지는 마이크를 열지 않습니다 (getUserMedia를 부르지 않음).
+            try { await core.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Microphone, MultiPageHost.TrimEnd('/'), CoreWebView2PermissionState.Allow); }
+            catch (Exception ex) { UiLog.Write($"multi: permission preset failed {ex.Message}"); }
+            core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;   // 실제 권한 요청(마이크 열기 등)은 모두 거절
             core.AddWebResourceRequestedFilter(MultiPageHost + "*", CoreWebView2WebResourceContext.All);
             core.WebResourceRequested += (_, e) =>
             {
