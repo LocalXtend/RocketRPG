@@ -15,7 +15,7 @@ namespace RocketRPG.Models;
 /// hardware-accelerated frames to WPF RenderScreen (direct native surface hosting or shared texture).
 /// Completely replaces the legacy PrintWindow/BitBlt OS window capture loop with safe automatic fallback.
 /// </summary>
-public class RocketRenderEasyRPG : IGameBridge, IDisposable
+public class RocketRenderEasyRPG : IGameBridge, IExtraModeTarget, IDisposable
 {
     private IntPtr _nativeInstance = IntPtr.Zero;
     private EasyRpgBridge? _bridge;
@@ -198,6 +198,13 @@ public class RocketRenderEasyRPG : IGameBridge, IDisposable
     public void SetRemoteControl(bool on) => _channel?.Send("rctl", on);
     /// <summary>멀티: 참가자가 지금 누르고 있는 키 (윈도우 가상 키, 쉼표로 구분). Shift·Win32API 키 상태는 이 경로로만 들어갑니다.</summary>
     public void SetRemoteKeys(string vkList) => _channel?.Send("rkeys", vkList);
+
+    // 멀티 엑스트라 모드 (EasyRPG Player 수정본의 rocket_extra.cpp, 같은 명령)
+    public bool ExtraSupported => _channel?.Connected == true;
+    public void SetExtraMode(bool on) => ExtraAgentCommands.Mode(_channel, on);
+    public void SetExtraGuests(IEnumerable<(string id, string name, string color)> guests) => ExtraAgentCommands.Guests(_channel, guests);
+    public void ExtraKey(string id, int vk, bool down) => ExtraAgentCommands.Key(_channel, id, vk, down);
+    public void ExtraHeld(string id, IEnumerable<int> keys) => ExtraAgentCommands.Held(_channel, id, keys);
     /// <summary>멀티: 방송 화면에도 ESP를 그림 (참가자가 도구 권한이 있을 때)</summary>
     public void SetEspShare(bool on) => _channel?.Send("espshare", on);
     /// <summary>글꼴은 게임을 다시 시작할 때 적용합니다 (MainWindow가 재시작을 묻습니다).</summary>

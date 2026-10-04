@@ -21,7 +21,7 @@ public partial class MainWindow
     IExtraModeTarget? _extraTarget;  // 방장: 그 상태를 알린 게임 (게임이 바뀌면 이전 게임은 끔)
     string _extraGuestsSent = "";    // 방장: 게임에 알린 참가자 목록
     string _extraModeBroadcast = ""; // 방장: 참가자에게 알린 방식 + 참가자 목록
-    string _extraUnsupportedFor = "";// 방장: 'MV/MZ만 됨' 안내를 한 게임
+    string _extraUnsupportedFor = "";// 방장: '이 게임에서는 쓸 수 없음' 안내를 한 게임
     bool _guestExtra;                // 참가자: 방장이 엑스트라 모드를 씀
 
     /// <summary>지금 게임이 엑스트라 모드를 받을 수 있으면 그 게임</summary>
@@ -42,7 +42,7 @@ public partial class MainWindow
             MultiControlItem.IsChecked = true;
         }
         ShowHudMessage(_ctl.Settings.MultiExtraMode
-            ? CurrentSupportsExtra || _currentBridge == null ? "엑스트라 모드: 참가자마다 캐릭터가 생깁니다." : "엑스트라 모드는 지금 MV/MZ 게임만 됩니다. 이 게임에서는 컨트롤 모드로 조작합니다."
+            ? CurrentSupportsExtra || _currentBridge == null ? "엑스트라 모드: 참가자마다 캐릭터가 생깁니다." : "이 게임과 아직 연결되지 않아 엑스트라 모드를 쓸 수 없습니다. 연결될 때까지 컨트롤 모드로 조작합니다."
             : "컨트롤 모드: 참가자가 방장 캐릭터를 함께 조작합니다.", 4000);
         ReleaseRemoteKeys();   // 방식이 바뀌면 누르던 키는 뗌
         SyncExtra();
@@ -78,11 +78,11 @@ public partial class MainWindow
                 }));
             }
         }
-        // MV/MZ가 아닌 게임에서 엑스트라 모드를 고른 경우: 한 번 알림
+        // 게임 안쪽이 아직 연결되지 않은 경우(에이전트 연결 전 등): 한 번 알림
         if (host && _multi.Room.Settings.Control && _ctl.Settings.MultiExtraMode && _currentBridge != null && !CurrentSupportsExtra && _extraUnsupportedFor != _currentDir)
         {
             _extraUnsupportedFor = _currentDir ?? "";
-            ShowHudMessage("엑스트라 모드는 지금 MV/MZ 게임만 됩니다. 이 게임에서는 컨트롤 모드로 조작합니다.", 5000);
+            ShowHudMessage("이 게임과 아직 연결되지 않아 엑스트라 모드를 쓸 수 없습니다. 연결될 때까지 컨트롤 모드로 조작합니다.", 5000);
         }
         // 참가자에게 방식 알림 (바뀌었거나 새 참가자가 들어왔을 때)
         if (host)

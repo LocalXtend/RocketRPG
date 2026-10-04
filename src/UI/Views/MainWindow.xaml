@@ -170,7 +170,7 @@
                     <MenuItem x:Name="MultiControlItem" Header="조종 권한 켜기(_K)" IsCheckable="True" Click="OnMultiControl" Visibility="Collapsed"
                               ToolTip="다른 참가자도 키보드로 게임을 조작할 수 있습니다. (방장 전용)"/>
                     <MenuItem x:Name="MultiExtraItem" Header="엑스트라 모드 (참가자마다 캐릭터)(_X)" IsCheckable="True" Click="OnMultiExtra" Visibility="Collapsed"
-                              ToolTip="조종 권한이 켜져 있을 때: 참가자가 방장 캐릭터 대신 자기 캐릭터를 하나씩 움직입니다. 지금은 MV/MZ 게임만 됩니다. (방장 전용)"/>
+                              ToolTip="조종 권한이 켜져 있을 때: 참가자가 방장 캐릭터 대신 자기 캐릭터를 하나씩 움직입니다. 모든 쯔꾸르 게임(2000~MZ)에서 됩니다. (방장 전용)"/>
                     <MenuItem x:Name="MultiNotesEditItem" Header="참가자도 노트 고치기(_E)" IsCheckable="True" IsChecked="True" Click="OnMultiNotesEditable" Visibility="Collapsed"
                               ToolTip="끄면 참가자는 방장의 게임 노트를 보기만 합니다. 페이지 관리는 항상 방장만 합니다."/>
                     <MenuItem x:Name="MultiQualityMenu" Header="방송 화질(_Q)" Visibility="Collapsed"
