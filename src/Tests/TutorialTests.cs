@@ -32,5 +32,38 @@ public partial class Program
         Assert("Tutorial pages have unique ids", TutorialContent.AllPages.GroupBy(p => p.Id).All(g => g.Count() == 1));
         Assert("Basic sections are present (start, name, multi, chat/ping)",
             new[] { "start-library", "start-open", "name", "multi-join", "chat", "ping" }.All(id => TutorialContent.AllPages.Any(p => p.Id == id)));
+
+        // 메뉴 그림의 경로가 실제 메뉴에 있고, 그림의 상태(방 밖·방장·참가자)에서 보이는 항목인지
+        var doc = System.Xml.Linq.XDocument.Parse(text);
+        System.Xml.Linq.XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation", x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var mainMenu = doc.Descendants(wpf + "Menu").First(e => (string?)e.Attribute(x + "Name") == "MainMenu");
+        static string Clean(string? h) => Regex.Replace(h ?? "", @"\(_[A-Za-z]\)", "").Replace("__", "\u0001").Replace("_", "").Replace("\u0001", "_").Replace("...", "").Trim();
+        var pictures = TutorialContent.AllPages.SelectMany(p => new[] { p.Picture, p.Result }.Concat(p.More ?? []))
+            .Where(pic => pic is { Kind: "Menu" }).Select(pic => pic!).ToList();
+        Assert($"Tutorial has menu pictures ({pictures.Count})", pictures.Count > 5);
+        foreach (var pic in pictures)
+        {
+            var level = mainMenu;
+            string where = "";
+            for (int i = 0; i < pic.Args.Length && level != null; i++)
+            {
+                string want = pic.Args[i];
+                // 참가자 목록은 방에 들어가야 생기는 메뉴라 그림은 예시 참가자를 씀
+                if ((string?)level.Attribute(x + "Name") == "MultiMembersMenu") { where = ""; break; }
+                var hit = level.Elements(wpf + "MenuItem").FirstOrDefault(e =>
+                {
+                    string? name = (string?)e.Attribute(x + "Name");
+                    bool visible = pic.State != null && MultiMenuRules.Visible(name, pic.State) is bool rule ? rule : (string?)e.Attribute("Visibility") != "Collapsed";
+                    return visible && Clean((string?)e.Attribute("Header")).StartsWith(want, StringComparison.Ordinal);
+                });
+                if (hit == null) { where = $"'{want}' missing"; break; }
+                level = hit;
+            }
+            Assert($"Menu picture path exists ({string.Join(" > ", pic.Args)}, {pic.State ?? "now"})", where.Length == 0, where);
+        }
+        Assert("Multi menu rules: host sees dissolve, guest sees leave, outside sees create",
+            MultiMenuRules.Visible("MultiDissolveItem", MultiMenuRules.Host) == true && MultiMenuRules.Visible("MultiLeaveItem", MultiMenuRules.Host) == false &&
+            MultiMenuRules.Visible("MultiLeaveItem", MultiMenuRules.Guest) == true && MultiMenuRules.Visible("MultiControlItem", MultiMenuRules.Guest) == false &&
+            MultiMenuRules.Visible("MultiCreateItem", MultiMenuRules.Outside) == true && MultiMenuRules.Visible("MultiChatItem", MultiMenuRules.Outside) == false);
     }
 }

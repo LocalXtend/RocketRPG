@@ -176,31 +176,23 @@ public partial class MainWindow
         var room = _multi.Room;
         int count = _multi.Members.Count;
 
-        Vis(MultiRoomHeader, inRoom);
+        // 보이고 숨기는 규칙은 MultiMenuRules 한 곳에 (사용법 그림도 같은 규칙으로 그림)
+        foreach (FrameworkElement item in new FrameworkElement[] { MultiRoomHeader, MultiCodeItem, MultiMembersMenu, MultiRoomSeparator, MultiChatItem, MultiChatLogItem,
+                                                                   MultiCreateItem, MultiJoinItem, MultiControlItem, MultiQualityMenu, MultiNotesEditItem, MultiLeaveItem, MultiDissolveItem })
+            Vis(item, MultiMenuRules.Visible(item.Name, inRoom, host) ?? true);
+        if (hideInfo) Vis(MultiCodeItem, false);
         MultiRoomHeader.Header = MenuText($"{(hideInfo ? "(방 제목 숨김)" : room.Settings.Title)} / 방 인원 {count}명{(_multi.Reconnecting ? " (다시 연결 중)" : "")}");
-        Vis(MultiCodeItem, inRoom && !hideInfo);
         MultiCodeItem.Header = $"방 코드 {room.Code} 복사{(room.Settings.Listed ? "" : " (비공개 방)")}";
-        Vis(MultiMembersMenu, inRoom);
         MultiMembersMenu.Header = $"참가자 ({count}/{room.Settings.Max})";
         MultiMembersMenu.Items.Clear();
         foreach (var m in _multi.Members) MultiMembersMenu.Items.Add(MemberMenuItem(m, host));
-        Vis(MultiRoomSeparator, inRoom);
-        Vis(MultiChatItem, inRoom);
-        Vis(MultiChatLogItem, inRoom);
-        Vis(MultiCreateItem, !inRoom);
-        Vis(MultiJoinItem, !inRoom);
-        Vis(MultiControlItem, inRoom && host);
         MultiControlItem.IsChecked = room.Settings.Control;
-        Vis(MultiQualityMenu, inRoom && host);
-        Vis(MultiNotesEditItem, inRoom && host);
         MultiNotesEditItem.IsChecked = room.Settings.NotesEditable;
         MultiQualityLow.IsChecked = room.Settings.Quality == "low";
         MultiQualityNormal.IsChecked = room.Settings.Quality is not ("low" or "high");
         MultiQualityHigh.IsChecked = room.Settings.Quality == "high";
         MultiFps30.IsChecked = room.Settings.Fps < 60;
         MultiFps60.IsChecked = room.Settings.Fps >= 60;
-        Vis(MultiLeaveItem, inRoom && !host);
-        Vis(MultiDissolveItem, inRoom && host);
 
         // 참가자 대기 화면: 방송 페이지가 뜨기 전까지 (뜨면 페이지가 영상과 안내 글을 보여 줌)
         bool guest = inRoom && !host;

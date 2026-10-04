@@ -12,12 +12,18 @@ namespace RocketRPG.Models;
 ///   Window    : 실제 창 하나 (Args[0] = 창 이름), Args[1..] = 번호를 붙일 글자(단추·칸)
 ///   Bar       : 메시지 바        Vote : 선택지 투표 상자     Chat : 화면 위로 흐르는 채팅
 ///   Ping      : 가운데 버튼 핑    Library : 쯔꾸르 모음        Notes : 노트
+/// 멀티 메뉴는 방 밖·방장·참가자일 때 항목이 다르므로, Menu 그림에는 State(MultiMenuRules.Outside/Host/Guest)를 정해
+/// 지금 상태와 상관없이 그 상태의 메뉴를 그립니다. Caption은 그림 위 한 줄 설명입니다.
 /// </summary>
-public sealed record TutorialPicture(string Kind, params string[] Args);
+public sealed record TutorialPicture(string Kind, params string[] Args)
+{
+    public string? State { get; init; }
+    public string? Caption { get; init; }
+}
 
-/// <summary>사용법 한 쪽: 한 줄 설명 → 그림(번호) → 따라 하기 → 결과 그림</summary>
+/// <summary>사용법 한 쪽: 한 줄 설명 → 그림(번호) → 더 보기 그림 → 따라 하기 → 결과 그림</summary>
 public sealed record TutorialPage(string Id, string Title, string Summary, TutorialPicture? Picture, IReadOnlyList<string> Steps,
-    TutorialPicture? Result = null, string? Tip = null);
+    TutorialPicture? Result = null, string? Tip = null, IReadOnlyList<TutorialPicture>? More = null);
 
 public sealed record TutorialSection(string Title, IReadOnlyList<TutorialPage> Pages);
 
@@ -127,7 +133,7 @@ public static class TutorialContent
         ]),
         new("내 이름", [
             new("name", "이름 바꾸기", "멀티 방에서 다른 사람에게 보일 내 이름을 정합니다.",
-                new TutorialPicture("Menu", "멀티", "방 설정", "이름 설정하기"),
+                new TutorialPicture("Menu", "멀티", "방 설정", "이름 설정하기") { State = MultiMenuRules.Outside },
                 ["'멀티 > 방 설정 > 이름 설정하기...'를 누릅니다.", "새 이름을 적습니다 (20자까지).", "'확인'을 누르면 바로 바뀝니다. 방에 있는 중이면 다른 사람에게도 바로 보입니다."],
                 new TutorialPicture("Window", "name", "확인")),
         ]),
@@ -144,11 +150,16 @@ public static class TutorialContent
                 null,
                 ["그대로 기다리면 RocketRPG가 계속 다시 연결해 봅니다.", "안내에 '내 네트워크가 막고 있음' 또는 '방장 네트워크가 막고 있음'이 나옵니다.", "ZeroTier·Tailscale·Radmin VPN 같은 가상 LAN을 방장과 같이 켜면 연결됩니다.", "휴대폰 테더링·회사·학교·PC방 네트워크는 막혀 있는 경우가 많습니다."]),
             new("multi-control", "조종 권한", "방장이 켜 주면 참가자도 키보드로 방장 게임을 조작하고 메시지 바·도구를 쓸 수 있습니다.",
-                new TutorialPicture("Menu", "멀티", "방 설정", "조종 권한 켜기"),
-                ["(방장) '멀티 > 방 설정 > 조종 권한 켜기'를 누릅니다.", "(참가자) 게임 화면을 한 번 누른 뒤 키보드로 조작합니다.", "선택지가 나오면 잠시 조작이 멈추고 오른쪽 투표 상자에서 투표합니다. 고르는 것은 방장입니다."]),
-            new("multi-leave", "방 나가기 / 없애기", "방에서 나오거나(참가자) 방을 없앱니다(방장).",
-                new TutorialPicture("Menu", "멀티", "방 나가기"),
-                ["(참가자) '멀티 > 방 나가기'를 누릅니다.", "(방장) '멀티 > 방 해체하기'를 누르면 모두 나가게 됩니다.", "방장을 넘기려면 '멀티 > 참가자'에서 사람을 고르고 '방장 넘기기'를 누릅니다."]),
+                new TutorialPicture("Menu", "멀티", "방 설정", "조종 권한 켜기") { State = MultiMenuRules.Host, Caption = "방장의 멀티 메뉴 (방을 만든 뒤에 보입니다)" },
+                ["(방장) '멀티 > 방 설정 > 조종 권한 켜기'를 누릅니다.", "(참가자) 게임 화면을 한 번 누른 뒤 키보드로 조작합니다.", "선택지가 나오면 잠시 조작이 멈추고 오른쪽 투표 상자에서 투표합니다. 고르는 것은 방장입니다."],
+                null, "조종 권한은 방장에게만 보입니다. 참가자 메뉴에는 없습니다."),
+            new("multi-leave", "방 나가기 / 없애기", "방에서 나오거나(참가자) 방을 없앱니다(방장). 방장과 참가자의 메뉴가 다릅니다.",
+                new TutorialPicture("Menu", "멀티", "방 나가기") { State = MultiMenuRules.Guest, Caption = "참가자: 방 나가기" },
+                ["(참가자) '멀티 > 방 나가기'를 누릅니다.", "(방장) '멀티 > 방 해체하기'를 누르면 모두 나가게 됩니다.", "방장을 넘기려면 '멀티 > 참가자'에서 사람을 고르고 '방장 넘기기'를 누릅니다."],
+                More: [
+                    new TutorialPicture("Menu", "멀티", "방 해체하기") { State = MultiMenuRules.Host, Caption = "방장: 방 해체하기" },
+                    new TutorialPicture("Menu", "멀티", "참가자", MultiMenuRules.SampleFriend, "방장 넘기기") { State = MultiMenuRules.Host, Caption = "방장: 방장 넘기기" },
+                ]),
         ]),
         new("채팅과 핑", [
             new("chat", "채팅 치기", "글을 쓰면 게임 화면 위로 흘러갑니다 (이름 없이). 누가 썼는지는 채팅 기록에서 봅니다.",

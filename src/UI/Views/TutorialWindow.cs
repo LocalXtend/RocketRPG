@@ -90,15 +90,15 @@ internal sealed class TutorialWindow : Window
         page.Children.Add(new TextBlock { Text = p.Title, FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6) });
         page.Children.Add(Para(TutorialContent.ApplyKeys(p.Summary), 14));
         if (p.Picture != null) page.Children.Add(Figure(p.Picture));
+        foreach (var more in p.More ?? []) page.Children.Add(Figure(more));
         if (p.Steps.Count > 0)
         {
             page.Children.Add(new TextBlock { Text = "따라 하기", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 14, 0, 6) });
             for (int i = 0; i < p.Steps.Count; i++)
             {
                 var row = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-                var num = Badge(i + 1);
-                num.Margin = new Thickness(0, 1, 8, 0);
-                num.VerticalAlignment = VerticalAlignment.Top;
+                // 빨간 동그라미 번호는 그림의 빨간 상자에만 씁니다. 따라 하기는 그냥 숫자.
+                var num = new TextBlock { Text = $"{i + 1}.", FontSize = 13, FontWeight = FontWeights.SemiBold, MinWidth = 20, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Top };
                 DockPanel.SetDock(num, Dock.Left);
                 row.Children.Add(num);
                 row.Children.Add(Para(TutorialContent.ApplyKeys(p.Steps[i]), 13));
@@ -175,7 +175,7 @@ internal sealed class TutorialWindow : Window
         {
             content = pic.Kind switch
             {
-                "Menu" => MenuPicture(pic.Args),
+                "Menu" => MenuPicture(pic.Args, pic.State),
                 "Window" => WindowPicture(pic.Args[0], pic.Args.Skip(1).ToArray()),
                 "Bar" => BarPicture(),
                 "Vote" => VotePicture(),
@@ -192,15 +192,73 @@ internal sealed class TutorialWindow : Window
             content = new TextBlock { Text = "(그림을 그리지 못했습니다)", Foreground = SystemColors.GrayTextBrush };
         }
         content.IsHitTestVisible = false;   // 그림일 뿐 누를 수 없음
-        return new Border
+        var frame = new Border
         {
-            Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(12), Background = new SolidColorBrush(Color.FromRgb(0xF4, 0xF4, 0xF4)),
-            BorderBrush = SystemColors.ActiveBorderBrush, BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left, Child = content,
+            Margin = new Thickness(0, pic.Caption == null ? 10 : 2, 0, 0), Padding = new Thickness(12), Background = new SolidColorBrush(Color.FromRgb(0xF4, 0xF4, 0xF4)),
+            BorderBrush = SystemColors.ActiveBorderBrush, BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left,
+            // 쪽보다 넓은 그림(하위 메뉴가 여럿 펼쳐진 메뉴 등)은 잘리지 않게 비율대로 줄임
+            Child = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = content, HorizontalAlignment = HorizontalAlignment.Left },
+        };
+        if (pic.Caption == null) return frame;
+        return new StackPanel
+        {
+            Margin = new Thickness(0, 10, 0, 0),
+            Children = { new TextBlock { Text = pic.Caption, FontWeight = FontWeights.SemiBold, Foreground = SystemColors.GrayTextBrush }, frame },
         };
     }
 
+    /// <summary>그림에 그릴 메뉴 한 줄 (실제 메뉴 항목에서 만들되, State가 있으면 그 상태의 멀티 메뉴로)</summary>
+    sealed record MenuRow(string Header, string Gesture, bool Checked, bool Enabled, ItemsControl? Sub, bool Separator = false);
+
+    static List<MenuRow> MenuRows(ItemsControl level, string? state)
+    {
+        var rows = new List<MenuRow>();
+        foreach (var obj in level.Items)
+        {
+            var fe = obj as FrameworkElement;
+            bool? rule = state == null ? null : MultiMenuRules.Visible(fe?.Name, state);
+            if (rule == false || (rule == null && fe?.Visibility == Visibility.Collapsed)) continue;
+            if (obj is Separator) { rows.Add(new MenuRow("", "", false, true, null, Separator: true)); continue; }
+            if (obj is not MenuItem mi) continue;
+            string header = Clean(mi.Header);
+            bool isChecked = mi.IsChecked, enabled = mi.IsEnabled;
+            ItemsControl? sub = mi.Items.OfType<MenuItem>().Any() ? mi : null;
+            if (state != null)
+            {
+                // 방에 있을 때 내용이 바뀌는 항목은 예시로
+                switch (mi.Name)
+                {
+                    case "MultiRoomHeader": header = $"{MultiMenuRules.SampleRoomTitle} / 방 인원 2명"; break;
+                    case "MultiCodeItem": header = $"방 코드 {MultiMenuRules.SampleRoomCode} 복사"; break;
+                    case "MultiMembersMenu": header = "참가자 (2/4)"; sub = SampleMembers(state == MultiMenuRules.Host); break;
+                    case "MultiControlItem": isChecked = false; break;
+                }
+                if (rule == true && mi.Name != "MultiRoomHeader") enabled = true;
+            }
+            rows.Add(new MenuRow(header, sub != null ? "▶" : mi.InputGestureText, isChecked, enabled, sub));
+        }
+        return rows;
+    }
+
+    /// <summary>예시 참가자 목록: 방장 메뉴면 '친구'에게 관리 메뉴가 달림</summary>
+    static MenuItem SampleMembers(bool host)
+    {
+        var list = new MenuItem();
+        list.Items.Add(new MenuItem { Header = host ? "나 (방장) (나)" : "방장 (방장)", IsEnabled = false });
+        var friend = new MenuItem { Header = host ? MultiMenuRules.SampleFriend : MultiMenuRules.SampleFriend + " (나)", IsEnabled = host };
+        if (host)
+        {
+            friend.Items.Add(new MenuItem { Header = "채팅 금지" });
+            friend.Items.Add(new MenuItem { Header = "방장 넘기기..." });
+            friend.Items.Add(new Separator());
+            friend.Items.Add(new MenuItem { Header = "내보내기..." });
+        }
+        list.Items.Add(friend);
+        return list;
+    }
+
     /// <summary>메뉴 줄에서 경로를 차례로 연 모습: [탭] → [항목] → [하위 항목], 고르는 곳에 번호</summary>
-    FrameworkElement MenuPicture(string[] path)
+    FrameworkElement MenuPicture(string[] path, string? state)
     {
         var tops = _menu.Items.OfType<MenuItem>().ToList();
         var top = tops.FirstOrDefault(m => Clean(m.Header).StartsWith(path[0], StringComparison.Ordinal));
@@ -209,44 +267,72 @@ internal sealed class TutorialWindow : Window
         // 메뉴 줄
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Background = SystemColors.MenuBarBrush };
         int n = 1;
+        FrameworkElement? topCell = null;
         foreach (var t in tops)
         {
             bool hit = ReferenceEquals(t, top);
             var cell = new Border { Padding = new Thickness(8, 3, 8, 3), Background = hit ? Highlight : Brushes.Transparent, Child = new TextBlock { Text = Clean(t.Header) } };
-            bar.Children.Add(hit ? Numbered(cell, n++) : cell);
+            var el = hit ? Numbered(cell, n++) : cell;
+            if (hit) topCell = el;
+            bar.Children.Add(el);
         }
         col.Children.Add(new Border { BorderBrush = MenuBorder, BorderThickness = new Thickness(1), Child = bar, HorizontalAlignment = HorizontalAlignment.Left });
         // 펼친 메뉴들 (나란히)
-        var drops = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(Math.Max(0, tops.IndexOf(top!) * 60), 0, 0, 0) };
+        var drops = new StackPanel { Orientation = Orientation.Horizontal };
+        var boxes = new List<(Border box, FrameworkElement? hitRow)>();
         ItemsControl? level = top;
         for (int depth = 1; level != null && depth <= Math.Max(1, path.Length - 1); depth++)
         {
             string? want = depth < path.Length ? path[depth] : null;
-            var panel = new StackPanel { MinWidth = 210 };
-            MenuItem? next = null;
-            foreach (var obj in level.Items)
+            var panel = new StackPanel { MinWidth = depth == 1 ? 210 : 140 };
+            ItemsControl? next = null;
+            FrameworkElement? hitRow = null;
+            bool found = false;
+            foreach (var mr in MenuRows(level, state))
             {
-                if (obj is Separator) { panel.Children.Add(new Rectangle { Height = 1, Fill = MenuBorder, Margin = new Thickness(26, 3, 4, 3) }); continue; }
-                if (obj is not MenuItem mi || mi.Visibility == Visibility.Collapsed) continue;
-                bool hit = want != null && next == null && Clean(mi.Header).StartsWith(want, StringComparison.Ordinal);
-                if (hit) next = mi;
+                if (mr.Separator) { panel.Children.Add(new Rectangle { Height = 1, Fill = MenuBorder, Margin = new Thickness(26, 3, 4, 3) }); continue; }
+                bool hit = want != null && !found && mr.Header.StartsWith(want, StringComparison.Ordinal);
+                if (hit) { found = true; next = mr.Sub; }
                 var row = new DockPanel { Background = hit ? Highlight : Brushes.Transparent };
-                var g = new TextBlock { Text = mi.Items.OfType<MenuItem>().Any() ? "▶" : mi.InputGestureText, Foreground = SystemColors.GrayTextBrush, Margin = new Thickness(24, 0, 6, 0), FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+                var g = new TextBlock { Text = mr.Gesture, Foreground = SystemColors.GrayTextBrush, Margin = new Thickness(24, 0, 6, 0), FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
                 DockPanel.SetDock(g, Dock.Right);
                 row.Children.Add(g);
-                row.Children.Add(new TextBlock { Text = (mi.IsChecked ? "✓ " : "   ") + Clean(mi.Header), Padding = new Thickness(6, 3, 0, 3), Foreground = mi.IsEnabled ? Brushes.Black : Brushes.Gray });
-                panel.Children.Add(hit ? Numbered(row, n++) : row);
+                row.Children.Add(new TextBlock { Text = (mr.Checked ? "✓ " : "   ") + mr.Header, Padding = new Thickness(6, 3, 0, 3), Foreground = mr.Enabled ? Brushes.Black : Brushes.Gray });
+                var el = hit ? Numbered(row, n++) : row;
+                if (hit) hitRow = el;
+                panel.Children.Add(el);
             }
-            drops.Children.Add(new Border
+            if (want != null && !found) UiLog.Write($"tutorial: menu path not found '{string.Join(" > ", path)}' at '{want}' (state {state ?? "now"})");
+            var box = new Border
             {
                 Background = Brushes.White, BorderBrush = MenuBorder, BorderThickness = new Thickness(1), Child = panel, VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(depth == 1 ? 0 : -2, depth == 1 ? 0 : 20, 0, 0),
+                Margin = new Thickness(depth == 1 ? 0 : -2, 0, 0, 0),
                 Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 2, Opacity = 0.25 },
-            });
+            };
+            // 앞쪽 메뉴를 위에: 고른 줄의 번호(오른쪽 위로 삐져나옴)가 옆 하위 메뉴에 가려지지 않게
+            Panel.SetZIndex(box, 100 - depth);
+            drops.Children.Add(box);
+            boxes.Add((box, hitRow));
             level = next;
         }
         col.Children.Add(drops);
         root.Children.Add(col);
+        // 실제 메뉴처럼: 첫 메뉴는 고른 탭 아래, 하위 메뉴는 고른 줄 옆에 (그려진 뒤 위치를 재서 맞춤)
+        root.Loaded += (_, _) => root.Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                if (topCell != null) drops.Margin = new Thickness(Math.Max(0, topCell.TranslatePoint(new Point(0, 0), bar).X), 0, 0, 0);
+                double y = 0;
+                for (int i = 1; i < boxes.Count; i++)
+                {
+                    var prev = boxes[i - 1];
+                    if (prev.hitRow != null) y += prev.hitRow.TranslatePoint(new Point(0, 0), prev.box).Y;
+                    boxes[i].box.Margin = new Thickness(-2, y, 0, 0);
+                }
+            }
+            catch (InvalidOperationException) { }
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
         return root;
     }
 
