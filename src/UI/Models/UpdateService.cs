@@ -15,7 +15,7 @@ namespace RocketRPG.Models;
 
 public class UpdateService
 {
-    public const string CurrentVersion = "1.1.1";
+    public const string CurrentVersion = "1.1.2";
     const string RepoApiUrl = "https://api.github.com/repos/LocalXtend/RocketRPG-Release/releases/latest";
     // 베타도 받을 때: 최근 릴리즈 목록(시험판 포함)에서 가장 높은 버전
     const string RepoListUrl = "https://api.github.com/repos/LocalXtend/RocketRPG-Release/releases?per_page=30";
