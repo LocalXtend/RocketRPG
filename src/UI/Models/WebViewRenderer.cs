@@ -323,10 +323,17 @@ public class WebViewRenderer : IGameBridge, IDisposable
             await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(BridgeScript);
             // 멀티 방장: 게임 캔버스 화면을 공유 메모리로 (방송할 때만 움직임)
             await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(ResourceText("RocketRPG.Resources.rocket_multi_frames.js"));
+            // 멀티 엑스트라 모드: 참가자마다 캐릭터 (켜졌을 때만 움직임)
+            await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(ResourceText("RocketRPG.Resources.rocket_extra.js"));
 
             // 자동 호환성 테스트(scripts/mv_autotest.ps1)에서만
             if (!string.IsNullOrEmpty(AutotestLog))
+            {
+                // RR_EXTRA_TEST: 첫 맵에서 엑스트라 모드(참가자 캐릭터)만 시험하고 끝냄
+                if (Environment.GetEnvironmentVariable("RR_EXTRA_TEST") == "1")
+                    await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("window.__rrExtraTest = true;");
                 await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(ResourceText("RocketRPG.Resources.mv_autotest.js"));
+            }
 
             // 게임이 스스로 종료(window.close / nw.App.quit)하면 세션을 끝냅니다.
             _webView.CoreWebView2.WindowCloseRequested += (_, _) =>
@@ -492,7 +499,30 @@ public class WebViewRenderer : IGameBridge, IDisposable
         PostCommand(new { type = "enableTileInspector", enabled = TileInspectorEnabled });
         PostCommand(new { type = "setAutoMessage", enabled = _autoMessage, speed = _autoSpeed });
         PostCommand(new { type = "setSkipMessage", enabled = _skipMessage });
+        if (_extraOn) { PostCommand(new { type = "extra", op = "mode", on = true }); PostCommand(new { type = "extra", op = "guests", list = _extraGuests }); }
     }
+
+    // ── 멀티 엑스트라 모드 (rocket_extra.js) ──
+    bool _extraOn;
+    object[] _extraGuests = [];
+
+    /// <summary>엑스트라 모드 켜고 끄기. 끄면 참가자 캐릭터가 모두 사라짐</summary>
+    public void SetExtraMode(bool on)
+    {
+        _extraOn = on;
+        if (!on) _extraGuests = [];
+        PostCommand(new { type = "extra", op = "mode", on });
+    }
+
+    /// <summary>캐릭터를 둘 참가자 (id, 이름, 이름표 색 #rrggbb)</summary>
+    public void SetExtraGuests(IEnumerable<(string id, string name, string color)> guests)
+    {
+        _extraGuests = guests.Select(g => (object)new { id = g.id, name = g.name, color = g.color }).ToArray();
+        PostCommand(new { type = "extra", op = "guests", list = _extraGuests });
+    }
+
+    public void ExtraKey(string id, int vk, bool down) => PostCommand(new { type = "extra", op = "key", id, k = vk, d = down });
+    public void ExtraHeld(string id, IEnumerable<int> keys) => PostCommand(new { type = "extra", op = "held", id, keys = keys.ToArray() });
 
     void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {

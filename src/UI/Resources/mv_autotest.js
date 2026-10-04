@@ -7,7 +7,7 @@
   'use strict';
   if (location.hostname !== 'rocket.local') return;
   var MAX_MAPS = 60, PER_MAP = 150;
-  var at = { frame: 0, phase: 0, maps: [], dests: {}, index: -1, mapFrames: 0, offMap: 0, target: 0, done: false,
+  var at = { frame: 0, phase: 0, exIdle: 0, exWait: 0, maps: [], dests: {}, index: -1, mapFrames: 0, offMap: 0, target: 0, done: false,
              forced: false, building: false, lastScene: '', choiceKey: null, choiceSeen: {}, downsNeeded: 0, downsDone: 0 };
 
   function log(line) { try { chrome.webview.postMessage({ type: 'autotest', line: at.frame + '\t' + line }); } catch (e) {} }
@@ -112,7 +112,15 @@
     var name = sceneName();
     if (name !== at.lastScene) { at.lastScene = name; log('SCENE ' + name); }
     trackChoice();
+    if (at.phase === 10) { extraTick(); return; }
     if (at.phase === 0) {
+      if (window.__rrExtraTest) {
+        // 맵에 도착한 뒤 시작 이벤트가 끝나기를 기다림 (확인 키는 계속 눌러 줌). 너무 오래면 그대로 시험
+        if (onMap() && $gameMap.mapId() > 0 && ((idle() && ++at.exIdle > 60) || ++at.exWait > 3000)) { log('EXTRA begin map=' + $gameMap.mapId()); at.phase = 10; at.et = 0; }
+        else if (at.frame > 6000) { log('EXTRA FAIL never reached a map'); finish(); }
+        else if (at.frame === 900 && !at.forced && !onMap()) forceNewGame();
+        return;
+      }
       if (onMap() && $gameMap.mapId() > 0 && !at.building && ++at.offMap > 60) { at.offMap = 0; buildMapList(); }
       else if (at.frame > 3600 && !at.building) { log('STUCK before map scene=' + name); finish(); }
       else if (at.frame === 900 && !at.forced && !onMap()) forceNewGame();
@@ -142,6 +150,87 @@
     if (onMap() && transferSafe() && at.mapFrames >= PER_MAP && (idle() || (at.mapFrames >= PER_MAP + 300 && !($gameMessage && $gameMessage.isBusy())) || at.mapFrames >= PER_MAP + 2400)) nextMap();
   }
 
+  // ---- 멀티 엑스트라 모드 시험 (RR_EXTRA_TEST): 가짜 참가자 캐릭터를 넣고 움직임·화면 제한·말 걸기·저장을 확인 ----
+  function extraTick() {
+    var ext = window.__rocketExtra, et = at.et++;
+    var g = ext && ext.guests.get('t1'), c = g && g.char;
+    var send = function (keys) { ext.command({ op: 'held', id: 't1', keys: keys }); };
+    if (!ext || !ext.installed) { log('EXTRA FAIL script not installed'); finish(); return; }
+    if (et === 0) {
+      ext.command({ op: 'mode', on: true });
+      ext.command({ op: 'guests', list: [{ id: 't1', name: 'test guest', color: '#ffd34d' }] });
+      at.exViolations = 0;
+      return;
+    }
+    if (!window.$dataMap || !$gameMap || $gameMap.mapId() <= 0) { at.et--; return; }   // 맵을 불러오는 중: 이 단계를 건너뛰지 않음
+    if (et > 2 && c && !c.isMoving() && !c.rrInView(c.x, c.y) && et !== 271) at.exViolations++;
+    if (et === 10 && c && !c.rrCanAct() && (at.exWaitAct = (at.exWaitAct || 0) + 1) < 2400) {
+      // 이벤트·메시지가 끝나 움직일 수 있을 때까지 기다림 (확인 키로 메시지를 넘김)
+      at.exPressOk = true;
+      at.et = 10;
+      return;
+    }
+    if (et === 10) {
+      at.exPressOk = false;
+      if (at.exWaitAct) log('EXTRA waited ' + at.exWaitAct + ' frames for the event to end');
+      var sp = scene() && scene()._spriteset && scene()._spriteset._rrGuestSprites;
+      log('EXTRA scene ' + sceneName() + ' ' + JSON.stringify(ext.debug && ext.debug()));
+      log('EXTRA spawn ' + (c && sp && sp.size === 1 && c.x === $gamePlayer.x && c.y === $gamePlayer.y ? 'ok' : 'FAIL') +
+          ' at ' + (c ? c.x + ',' + c.y : '-') + ' player ' + $gamePlayer.x + ',' + $gamePlayer.y + ' image ' + (c ? c.characterName() + '/' + c.characterIndex() : '-'));
+      at.exStart = c ? [c.x, c.y] : [0, 0];
+      // 갈 수 있는 방향 하나와 그 반대 (방향키 VK: 2 아래 0x28, 4 왼쪽 0x25, 6 오른쪽 0x27, 8 위 0x26)
+      var vk = { 2: 0x28, 4: 0x25, 6: 0x27, 8: 0x26 };
+      var pass = [2, 4, 6, 8].filter(function (d) { return c && c.canPass(c.x, c.y, d); });
+      at.exDir = pass[0] || 6;
+      at.exKey = vk[at.exDir];
+      at.exBack = vk[10 - at.exDir];
+      log('EXTRA passable ' + JSON.stringify(pass) + ' canAct ' + (c && c.rrCanAct()) + ' on=' + ext.on + ' map=' + (scene() instanceof Scene_Map) + ' ev=' + $gameMap.isEventRunning() + ' msg=' + $gameMessage.isBusy() + ' tr=' + $gamePlayer.isTransferring() + ' chg=' + SceneManager.isSceneChanging());
+    }
+    if (et >= 10 && et < 130 && et % 10 === 0) send([at.exKey]);
+    if (et >= 130 && et < 250 && et % 10 === 0) send([at.exBack]);
+    if (et === 130) log('EXTRA move ' + at.exDir + ' ' + (c && (c.x !== at.exStart[0] || c.y !== at.exStart[1]) ? 'ok' : 'FAIL') + ' ' + at.exStart + ' -> ' + (c ? c.x + ',' + c.y : '-'));
+    if (et === 250) { send([]); log('EXTRA move back ' + (c ? c.x + ',' + c.y : '-') + ' camera violations ' + at.exViolations); }
+    if (et === 270 && c) c.locate($gamePlayer.x + $gameMap.screenTileX() + 5, $gamePlayer.y);
+    if (et === 274) log('EXTRA off-screen -> ' + (c && c.x === $gamePlayer.x && c.y === $gamePlayer.y ? 'back to host ok' : 'FAIL ' + (c ? c.x + ',' + c.y : '-')));
+    if (et === 280 && c && !c.rrCanAct() && (at.exWaitTalk = (at.exWaitTalk || 0) + 1) < 1200) { at.exPressOk = true; at.et = 280; return; }
+    if (et === 280) {
+      at.exPressOk = false;
+      // 말 걸기: 맵의 '결정 키' 이벤트 옆에 세우고 확인 키
+      var target = null, spot = null;
+      $gameMap.events().some(function (ev) {
+        if (!ev.page() || !ev.isTriggerIn([0]) || !ev.isNormalPriority() || ev.list().length <= 1) return false;
+        return [[0, 1, 8], [0, -1, 2], [1, 0, 4], [-1, 0, 6]].some(function (o) {
+          var x = ev.x + o[0], y = ev.y + o[1];
+          if (!$gameMap.isValid(x, y) || !$gameMap.isPassable(x, y, o[2]) || $gameMap.eventsXyNt(x, y).length) return false;
+          target = ev; spot = [x, y, o[2]]; return true;
+        });
+      });
+      if (!target) { log('EXTRA talk skipped (no talk event on this map)'); at.et = 300; return; }
+      $gamePlayer.locate(spot[0], spot[1]);
+      c.locate(spot[0], spot[1]);
+      c.setDirection(spot[2]);
+      at.exTarget = target;
+    }
+    if (et === 283 && at.exTarget) {
+      var before = 'canAct=' + c.rrCanAct() + ' msg=' + $gameMessage.isBusy() + ' tr=' + $gamePlayer.isTransferring() + ' chg=' + SceneManager.isSceneChanging() + ' map=' + (scene() instanceof Scene_Map) + ' on=' + window.__rocketExtra.on + ' moving=' + c.isMoving() + ' at ' + c.x + ',' + c.y + ' dir ' + c.direction() + ' event ' + at.exTarget.x + ',' + at.exTarget.y +
+        ' trig ' + at.exTarget._trigger + ' prio ' + at.exTarget._priorityType + ' running=' + $gameMap.isEventRunning();
+      c.rrAction();
+      log('EXTRA talk ' + (at.exTarget._starting || $gameMap.isEventRunning() ? 'ok' : 'FAIL') + ' event ' + at.exTarget.eventId() + ' (' + before + ')');
+    }
+    if (et === 300) {
+      var json = '';
+      try { json = JsonEx.stringify(DataManager.makeSaveContents()); } catch (e) { json = 'error ' + e; }
+      log('EXTRA save ' + (json.indexOf('RocketGuest') < 0 && json.indexOf('_rrGuest') < 0 ? 'clean' : 'FAIL contains guest'));
+      ext.command({ op: 'mode', on: false });
+    }
+    if (et === 306) {
+      var sp2 = scene() && scene()._spriteset && scene()._spriteset._rrGuestSprites;
+      log('EXTRA off ' + (!sp2 || sp2.size === 0 ? 'sprites removed' : 'FAIL ' + sp2.size));
+      log('EXTRA DONE violations=' + at.exViolations);
+      finish();
+    }
+  }
+
   // ---- input simulation ----
   // Plugins (keyboard / title plugins) may replace Input methods after we hooked them; re-wrap only when our layer
   // is gone. Each wrapper records what it wraps (__rrWraps) and its owner, so the bridge's own input hook and ours
@@ -160,7 +249,7 @@
   }
   // After the map's time is up, OK only closes an open message (otherwise the event in front keeps restarting its talk).
   function ok(k) {
-    if (at.done || k !== 'ok' || at.frame % 12 !== 0 || needDown()) return false;
+    if (at.done || k !== 'ok' || at.frame % 12 !== 0 || needDown() || (at.phase === 10 && !at.exPressOk)) return false;
     return !(at.phase === 1 && at.mapFrames >= PER_MAP && !($gameMessage && $gameMessage.isBusy()));
   }
   function down(k) {

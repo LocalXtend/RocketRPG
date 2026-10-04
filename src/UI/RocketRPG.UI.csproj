@@ -28,6 +28,7 @@
     <EmbeddedResource Include="Resources\mv_autotest.js" LogicalName="RocketRPG.Resources.mv_autotest.js" />
     <EmbeddedResource Include="Resources\multi.html" LogicalName="RocketRPG.Resources.multi.html" />
     <EmbeddedResource Include="Resources\rocket_multi_frames.js" LogicalName="RocketRPG.Resources.rocket_multi_frames.js" />
+    <EmbeddedResource Include="Resources\rocket_extra.js" LogicalName="RocketRPG.Resources.rocket_extra.js" />
     <EmbeddedResource Include="Resources\rocket_rgss_loader.rb" LogicalName="RocketRPG.Resources.rocket_rgss_loader.rb" />
     <EmbeddedResource Include="Resources\mkxp-preload\*.rb" LogicalName="RocketRPG.Resources.mkxp_preload.%(Filename)%(Extension)" />
   </ItemGroup>

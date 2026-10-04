@@ -20,6 +20,8 @@ public class GlobalSettings
     [System.Text.Json.Serialization.JsonPropertyName("multi_client_id")] public string MultiClientId { get; set; } = "";
     [System.Text.Json.Serialization.JsonPropertyName("multi_hide_pings")] public bool MultiHidePings { get; set; }
     [System.Text.Json.Serialization.JsonPropertyName("multi_hide_chat")] public bool MultiHideChat { get; set; }
+    /// <summary>멀티 조종 방식: 엑스트라 모드 (참가자마다 캐릭터). 끄면 컨트롤 모드 (방장 캐릭터를 함께 조종)</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("multi_extra_mode")] public bool MultiExtraMode { get; set; }
 
     // 업데이트 받을 버전: "stable" = 정식만, "beta" = 베타도, "" = 정하지 않음 (지금 버전이 베타면 베타도)
     [System.Text.Json.Serialization.JsonPropertyName("update_channel")] public string UpdateChannel { get; set; } = "";

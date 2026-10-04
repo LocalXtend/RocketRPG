@@ -60,6 +60,7 @@ public partial class MainWindow
         int vk = m["k"] is JsonValue kv && kv.TryGetValue<int>(out int k) ? k : 0;
         bool down = m["d"] is JsonValue dv && dv.TryGetValue<int>(out int d) && d != 0;
         if (!_multi.Members.Any(m => m.Id == from && !m.Host) || !IsGameKey(vk) || !_own.Allowed(from)) return;
+        if (RouteExtraKey(from, vk, down)) return;   // 엑스트라 모드: 그 참가자 캐릭터로
         _remoteKeys.Touch(from, Environment.TickCount64);
         if (_vote.Open && down) return;   // 선택지 투표 중: 고르는 것은 방장 (떼기는 받음)
         if (_remoteKeys.Set(from, vk, down))
@@ -73,9 +74,10 @@ public partial class MainWindow
         if (_multi is not { InRoom: true, IsHost: true } || !_multi.Room.Settings.Control) return;
         string from = m["from"]?.GetValue<string>() ?? "";
         if (!_multi.Members.Any(x => x.Id == from && !x.Host) || !_own.Allowed(from)) return;
-        _remoteKeys.Touch(from, Environment.TickCount64);
         var held = (m["keys"] as JsonArray ?? new JsonArray())
             .Select(n => n is JsonValue v && v.TryGetValue<int>(out int vk) ? vk : 0).Where(IsGameKey);
+        if (RouteExtraHeld(from, held.ToArray())) return;
+        _remoteKeys.Touch(from, Environment.TickCount64);
         if (_vote.Open) held = [];   // 선택지 투표 중: 참가자 키는 모두 뗀 것으로
         var changes = _remoteKeys.Reconcile(from, held);
         foreach (var (vk, down) in changes) PostGameKey(vk, down);
@@ -128,6 +130,7 @@ public partial class MainWindow
     {
         if (_multi == null) return;
         bool control = _multi.InRoom && _multi.Room.Settings.Control;
+        SyncExtra();
         if (role == "host")
         {
             // 조종 권한을 끄거나 게임이 바뀌면 참가자 키를 모두 뗌

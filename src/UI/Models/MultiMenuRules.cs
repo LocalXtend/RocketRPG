@@ -16,7 +16,7 @@ public static class MultiMenuRules
     {
         "MultiRoomHeader" or "MultiCodeItem" or "MultiMembersMenu" or "MultiRoomSeparator" or "MultiChatItem" or "MultiChatLogItem" => inRoom,
         "MultiCreateItem" or "MultiJoinItem" => !inRoom,
-        "MultiControlItem" or "MultiQualityMenu" or "MultiNotesEditItem" or "MultiDissolveItem" => inRoom && host,
+        "MultiControlItem" or "MultiExtraItem" or "MultiQualityMenu" or "MultiNotesEditItem" or "MultiDissolveItem" => inRoom && host,
         "MultiLeaveItem" => inRoom && !host,
         _ => null,
     };
