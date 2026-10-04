@@ -1,0 +1,584 @@
+{
+  "_comment": "RocketRPG와 함께 배포하는 구성요소 목록. 정보 > RocketRPG 정보 창과 scripts/license_audit.ps1이 함께 씁니다. files는 배포 폴더(dist/portable) 기준 경로(와일드카드 가능).",
+  "components": [
+    {
+      "name": "RocketRPG",
+      "version": "(이 프로그램)",
+      "license": "MIT",
+      "texts": [
+        "RocketRPG-MIT.txt"
+      ],
+      "source": "https://github.com/LocalXtend/RocketRPG",
+      "modified": false,
+      "files": [
+        "RocketRPG.exe",
+        "RocketRPGCore.dll"
+      ],
+      "note": "RocketRPG 자체 코드. 함께 배포하는 다른 구성요소에는 각자의 라이선스가 적용됩니다."
+    },
+    {
+      "name": ".NET 런타임 / WPF",
+      "version": "10",
+      "license": "MIT",
+      "texts": [
+        "dotnet-MIT.txt",
+        "dotnet-ThirdPartyNotices.txt"
+      ],
+      "source": "https://github.com/dotnet/runtime",
+      "modified": false,
+      "files": [],
+      "note": "RocketRPG.exe 안에 들어 있음 (따로 설치하지 않아도 되게)."
+    },
+    {
+      "name": "EasyRPG Player (RocketRPG 수정본)",
+      "version": "0.8.1.1 + RocketRPG 수정",
+      "license": "GPL-3.0-or-later",
+      "texts": [
+        "EasyRPG-Player-GPL-3.0.txt"
+      ],
+      "source": "https://github.com/LocalXtend/EasyRPG_Patch",
+      "modified": true,
+      "files": [
+        "runtimes/easyrpg/Player.exe"
+      ],
+      "note": "RPG Maker 2000/2003 게임을 실행합니다. 수정한 소스 전체는 위 저장소와 RocketRPG 릴리즈의 'easyrpg-source' 압축 파일에 있습니다. 원본: https://github.com/EasyRPG/Player (0.8.1.1)"
+    },
+    {
+      "name": "liblcf",
+      "version": "0.8.1",
+      "license": "MIT",
+      "texts": [
+        "liblcf.txt"
+      ],
+      "source": "https://github.com/EasyRPG/liblcf",
+      "modified": false,
+      "files": [],
+      "note": "EasyRPG Player에 들어 있음 (정적 링크)."
+    },
+    {
+      "name": "inih",
+      "version": "r58",
+      "license": "BSD-3-Clause",
+      "texts": [
+        "inih.txt"
+      ],
+      "source": "https://github.com/benhoyt/inih",
+      "modified": false,
+      "files": [],
+      "note": "EasyRPG Player에 들어 있음 (정적 링크)."
+    },
+    {
+      "name": "mkxp-z",
+      "version": "2.4.2 (a5d5749)",
+      "license": "GPL-2.0-or-later (OpenSSL 3 포함 빌드이므로 GPL-3.0으로 배포)",
+      "texts": [
+        "mkxp-z-COPYING.txt",
+        "GPL-3.0.txt"
+      ],
+      "source": "https://github.com/mkxp-z/mkxp-z/tree/a5d574984c68a7a2692fb9b212871f549af80874",
+      "modified": false,
+      "files": [
+        "runtimes/mkxp-z/mkxp-z.exe",
+        "runtimes/mkxp-z/RocketRenderMKXP.exe"
+      ],
+      "note": "RPG Maker XP/VX/VX Ace 게임을 실행합니다. RocketRenderMKXP.exe는 같은 파일의 사본입니다. 함께 들어 있는 라이브러리: SDL2, SDL_sound, OpenAL Soft, PhysFS, Ogg/Vorbis, pixman, FreeType, OpenSSL 3.3.1 등."
+    },
+    {
+      "name": "Ruby",
+      "version": "3.0.0p0, 3.1.3p185",
+      "license": "Ruby License / BSD-2-Clause",
+      "texts": [
+        "Ruby-COPYING.txt",
+        "Ruby-BSDL.txt"
+      ],
+      "source": "https://github.com/ruby/ruby",
+      "modified": false,
+      "files": [
+        "runtimes/mkxp-z/x64-msvcrt-ruby300.dll",
+        "runtimes/mkxp-z/x64-msvcrt-ruby310.dll"
+      ],
+      "note": "mkxp-z가 게임 스크립트를 실행하는 데 씁니다."
+    },
+    {
+      "name": "OpenSSL",
+      "version": "3.3.1",
+      "license": "Apache-2.0",
+      "texts": [
+        "OpenSSL-Apache-2.0.txt"
+      ],
+      "source": "https://github.com/openssl/openssl",
+      "modified": false,
+      "files": [],
+      "note": "mkxp-z에 들어 있음."
+    },
+    {
+      "name": "OpenAL Soft",
+      "version": "(mkxp-z 2.4.2 빌드)",
+      "license": "LGPL-2.0-or-later",
+      "texts": [
+        "OpenAL-Soft-LGPL.txt"
+      ],
+      "source": "https://github.com/kcat/openal-soft",
+      "modified": false,
+      "files": [],
+      "note": "mkxp-z에 들어 있음."
+    },
+    {
+      "name": "PhysicsFS",
+      "version": "(mkxp-z 2.4.2 빌드)",
+      "license": "Zlib",
+      "texts": [
+        "PhysFS.txt"
+      ],
+      "source": "https://github.com/icculus/physfs",
+      "modified": false,
+      "files": [],
+      "note": "mkxp-z에 들어 있음."
+    },
+    {
+      "name": "SDL_sound",
+      "version": "(mkxp-z 2.4.2 빌드)",
+      "license": "Zlib",
+      "texts": [
+        "SDL_sound.txt"
+      ],
+      "source": "https://github.com/icculus/SDL_sound",
+      "modified": false,
+      "files": [],
+      "note": "mkxp-z에 들어 있음."
+    },
+    {
+      "name": "SDL2 / SDL3",
+      "version": "MSYS2 UCRT64",
+      "license": "Zlib",
+      "texts": [
+        "SDL2.txt",
+        "SDL3.txt"
+      ],
+      "source": "https://github.com/libsdl-org/SDL",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/SDL2.dll",
+        "runtimes/easyrpg/SDL3.dll"
+      ]
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.1",
+      "license": "Zlib",
+      "texts": [
+        "zlib.txt"
+      ],
+      "source": "https://zlib.net/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/zlib1.dll",
+        "runtimes/mkxp-z/zlib1.dll"
+      ]
+    },
+    {
+      "name": "FluidSynth",
+      "version": "3",
+      "license": "LGPL-2.1-or-later",
+      "texts": [
+        "fluidsynth-LGPL-2.1.txt"
+      ],
+      "source": "https://github.com/FluidSynth/fluidsynth",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libfluidsynth-3.dll"
+      ],
+      "note": "MIDI 음악 재생 (동적 링크: DLL을 바꿔 끼울 수 있음)."
+    },
+    {
+      "name": "libsndfile",
+      "version": "MSYS2 UCRT64",
+      "license": "LGPL-2.1-or-later",
+      "texts": [
+        "libsndfile-LGPL.txt"
+      ],
+      "source": "https://github.com/libsndfile/libsndfile",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libsndfile-1.dll"
+      ]
+    },
+    {
+      "name": "mpg123",
+      "version": "MSYS2 UCRT64",
+      "license": "LGPL-2.1",
+      "texts": [
+        "mpg123-LGPL.txt"
+      ],
+      "source": "https://www.mpg123.de/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libmpg123-0.dll"
+      ]
+    },
+    {
+      "name": "LAME",
+      "version": "MSYS2 UCRT64",
+      "license": "LGPL-2.0-or-later",
+      "texts": [
+        "lame-LGPL.txt"
+      ],
+      "source": "https://lame.sourceforge.io/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libmp3lame-0.dll"
+      ]
+    },
+    {
+      "name": "GLib",
+      "version": "2",
+      "license": "LGPL-2.1-or-later",
+      "texts": [
+        "LGPL-2.1.txt"
+      ],
+      "source": "https://gitlab.gnome.org/GNOME/glib",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libglib-2.0-0.dll"
+      ]
+    },
+    {
+      "name": "GNU libiconv / gettext (libintl)",
+      "version": "MSYS2 UCRT64",
+      "license": "LGPL-2.1-or-later",
+      "texts": [
+        "libiconv-LGPL.txt",
+        "gettext-intl-LGPL.txt"
+      ],
+      "source": "https://www.gnu.org/software/libiconv/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libiconv-2.dll",
+        "runtimes/easyrpg/libintl-8.dll"
+      ]
+    },
+    {
+      "name": "GNU Readline",
+      "version": "8",
+      "license": "GPL-3.0-or-later",
+      "texts": [
+        "readline-GPL-3.0.txt"
+      ],
+      "source": "https://tiswww.case.edu/php/chet/readline/rltop.html",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libreadline8.dll"
+      ],
+      "note": "FluidSynth가 함께 불러오는 라이브러리입니다."
+    },
+    {
+      "name": "ncurses (termcap)",
+      "version": "MSYS2 UCRT64",
+      "license": "X11 (MIT 계열)",
+      "texts": [
+        "ncurses-termcap.txt"
+      ],
+      "source": "https://invisible-island.net/ncurses/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libtermcap-0.dll"
+      ]
+    },
+    {
+      "name": "GCC 런타임 (libgcc, libstdc++, libgomp)",
+      "version": "MSYS2 UCRT64",
+      "license": "GPL-3.0-or-later + GCC Runtime Library Exception",
+      "texts": [
+        "GPL-3.0.txt",
+        "gcc-runtime-exception.txt"
+      ],
+      "source": "https://gcc.gnu.org/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libgcc_s_seh-1.dll",
+        "runtimes/easyrpg/libstdc++-6.dll",
+        "runtimes/easyrpg/libgomp-1.dll"
+      ]
+    },
+    {
+      "name": "winpthreads",
+      "version": "MSYS2 UCRT64",
+      "license": "MIT / BSD",
+      "texts": [
+        "winpthreads.txt"
+      ],
+      "source": "https://www.mingw-w64.org/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libwinpthread-1.dll"
+      ]
+    },
+    {
+      "name": "FreeType",
+      "version": "2",
+      "license": "FreeType License (FTL)",
+      "texts": [
+        "freetype-FTL.txt"
+      ],
+      "source": "https://freetype.org/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libfreetype-6.dll"
+      ]
+    },
+    {
+      "name": "HarfBuzz",
+      "version": "MSYS2 UCRT64",
+      "license": "MIT",
+      "texts": [
+        "harfbuzz.txt"
+      ],
+      "source": "https://github.com/harfbuzz/harfbuzz",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libharfbuzz-0.dll"
+      ]
+    },
+    {
+      "name": "Graphite2",
+      "version": "MSYS2 UCRT64",
+      "license": "LGPL-2.1-or-later / MPL-2.0",
+      "texts": [
+        "graphite2.txt"
+      ],
+      "source": "https://github.com/silnrsi/graphite",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libgraphite2.dll"
+      ]
+    },
+    {
+      "name": "ICU",
+      "version": "78",
+      "license": "Unicode-3.0",
+      "texts": [
+        "icu.txt"
+      ],
+      "source": "https://icu.unicode.org/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libicu*.dll"
+      ]
+    },
+    {
+      "name": "PCRE2",
+      "version": "MSYS2 UCRT64",
+      "license": "BSD-3-Clause",
+      "texts": [
+        "pcre2.txt"
+      ],
+      "source": "https://github.com/PCRE2Project/pcre2",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libpcre2-8-0.dll"
+      ]
+    },
+    {
+      "name": "pixman",
+      "version": "MSYS2 UCRT64",
+      "license": "MIT",
+      "texts": [
+        "pixman.txt"
+      ],
+      "source": "https://www.pixman.org/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libpixman-1-0.dll"
+      ]
+    },
+    {
+      "name": "libpng",
+      "version": "1.6",
+      "license": "libpng License",
+      "texts": [
+        "libpng.txt"
+      ],
+      "source": "http://www.libpng.org/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libpng16-16.dll"
+      ]
+    },
+    {
+      "name": "fmt",
+      "version": "12",
+      "license": "MIT",
+      "texts": [
+        "fmt.txt"
+      ],
+      "source": "https://github.com/fmtlib/fmt",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libfmt-12.dll"
+      ]
+    },
+    {
+      "name": "Ogg / Vorbis / Opus / Opusfile / FLAC",
+      "version": "MSYS2 UCRT64",
+      "license": "BSD-3-Clause",
+      "texts": [
+        "libogg.txt",
+        "libvorbis.txt",
+        "opus.txt",
+        "opusfile.txt",
+        "flac.txt"
+      ],
+      "source": "https://xiph.org/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libogg-0.dll",
+        "runtimes/easyrpg/libvorbis*.dll",
+        "runtimes/easyrpg/libopus*.dll",
+        "runtimes/easyrpg/libFLAC.dll"
+      ]
+    },
+    {
+      "name": "SpeexDSP",
+      "version": "MSYS2 UCRT64",
+      "license": "BSD-3-Clause",
+      "texts": [
+        "speexdsp.txt"
+      ],
+      "source": "https://www.speex.org/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libspeexdsp-1.dll"
+      ]
+    },
+    {
+      "name": "libxmp",
+      "version": "MSYS2 UCRT64",
+      "license": "MIT",
+      "texts": [
+        "libxmp.txt"
+      ],
+      "source": "https://github.com/libxmp/libxmp",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libxmp.dll"
+      ]
+    },
+    {
+      "name": "PortAudio",
+      "version": "MSYS2 UCRT64",
+      "license": "MIT",
+      "texts": [
+        "portaudio.txt"
+      ],
+      "source": "https://www.portaudio.com/",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libportaudio.dll"
+      ]
+    },
+    {
+      "name": "Brotli / bzip2 / Expat",
+      "version": "MSYS2 UCRT64",
+      "license": "MIT / bzip2 License / MIT",
+      "texts": [
+        "brotli.txt",
+        "bzip2.txt",
+        "expat.txt"
+      ],
+      "source": "https://github.com/google/brotli",
+      "modified": false,
+      "files": [
+        "runtimes/easyrpg/libbrotli*.dll",
+        "runtimes/easyrpg/libbz2-1.dll"
+      ]
+    },
+    {
+      "name": "GeneralUser GS (사운드폰트)",
+      "version": "1.471",
+      "license": "GeneralUser GS License v2.0",
+      "texts": [
+        "GeneralUser-GS.txt"
+      ],
+      "source": "https://schristiancollins.com/generaluser.php",
+      "modified": false,
+      "files": [
+        "runtimes/soundfonts/GeneralUser_GS.sf2"
+      ],
+      "note": "MIDI 음악 소리."
+    },
+    {
+      "name": "나눔고딕 (NanumGothic)",
+      "version": "",
+      "license": "SIL Open Font License 1.1",
+      "texts": [
+        "NanumGothic-OFL.txt"
+      ],
+      "source": "https://hangeul.naver.com/font",
+      "modified": false,
+      "files": [
+        "runtimes/mkxp-z/Fonts/NanumGothic.ttf"
+      ]
+    },
+    {
+      "name": "fd",
+      "version": "",
+      "license": "MIT / Apache-2.0",
+      "texts": [
+        "fd-MIT.txt"
+      ],
+      "source": "https://github.com/sharkdp/fd",
+      "modified": false,
+      "files": [
+        "tools/fd/fd.exe"
+      ],
+      "note": "쯔꾸르 모음에서 게임 폴더를 빨리 찾는 데 씁니다."
+    },
+    {
+      "name": "mkxp-z 호환 스크립트 (win32_wrap 등)",
+      "version": "",
+      "license": "CC0-1.0",
+      "texts": [],
+      "source": "https://github.com/mkxp-z/mkxp-z/tree/release/scripts/preload",
+      "modified": true,
+      "files": [],
+      "note": "RocketRPG.exe 안에 들어 있음. 작성자: Ancurio, Splendide Imaginarius, WaywardHeart."
+    },
+    {
+      "name": "Microsoft Edge WebView2 SDK",
+      "version": "1.0.4191.47",
+      "license": "Microsoft WebView2 SDK License (BSD 형식)",
+      "texts": [
+        "Microsoft-WebView2-SDK.txt",
+        "Microsoft-WebView2-SDK-NOTICE.txt"
+      ],
+      "source": "https://www.nuget.org/packages/Microsoft.Web.WebView2",
+      "modified": false,
+      "files": [],
+      "note": "RocketRPG.exe 안에 들어 있음. WebView2 런타임 자체는 Windows에 설치된 것을 씁니다."
+    },
+    {
+      "name": "DiscordRichPresence",
+      "version": "1.6.1.70",
+      "license": "MIT",
+      "texts": [
+        "DiscordRichPresence.txt"
+      ],
+      "source": "https://github.com/Lachee/discord-rpc-csharp",
+      "modified": false,
+      "files": [],
+      "note": "RocketRPG.exe 안에 들어 있음."
+    },
+    {
+      "name": "Newtonsoft.Json",
+      "version": "13.0.1",
+      "license": "MIT",
+      "texts": [
+        "Newtonsoft.Json.txt"
+      ],
+      "source": "https://www.newtonsoft.com/json",
+      "modified": false,
+      "files": [],
+      "note": "RocketRPG.exe 안에 들어 있음 (DiscordRichPresence가 사용)."
+    }
+  ]
+}

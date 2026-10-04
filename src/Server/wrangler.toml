@@ -1,0 +1,17 @@
+name = "rocketrpg-multi"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# 방 목록 (하나) + 방마다 하나씩
+[[durable_objects.bindings]]
+name = "LOBBY"
+class_name = "Lobby"
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+# 무료 플랜은 SQLite 저장소를 쓰는 Durable Object만 됩니다
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Lobby", "Room"]

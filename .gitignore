@@ -1,0 +1,41 @@
+# Game samples (local only)
+GameSample/
+
+# Build output
+dist/
+runtimes/
+bin/
+obj/
+build/
+out/
+*.user
+*.suo
+.vs/
+.cache/
+
+# Native build artifacts
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.obj
+
+# Codegraph local index
+.codegraph/
+
+# opencode runtime state
+.omo/
+
+# OS junk
+Thumbs.db
+Desktop.ini
+
+# User private notes
+작성용.MD
+
+# Downloaded tools
+tools/
+
+# Multiplayer server (npm/wrangler)
+node_modules/
+.wrangler/

@@ -1,0 +1,40 @@
+<UserControl x:Class="RocketRPG.Views.RenpyMessageBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=FontFamily}"
+             FontSize="13" FontWeight="SemiBold" SnapsToDevicePixels="True">
+    <UserControl.Resources>
+        <DropShadowEffect x:Key="TextStrokeEffect" BlurRadius="4" ShadowDepth="0" Color="Black" Opacity="1"/>
+
+        <!-- Ren'Py 퀵 메뉴 스타일: 배경 없는 작은 텍스트 버튼.
+             글자색(평소/켜짐 × 마우스 올림/누름)은 코드(RenpyMessageBar.Refresh)가 정합니다 —
+             켜진 버튼에 마우스를 올리면 흰색으로 바뀌지 않고 켜짐 색이 더 진해집니다. -->
+        <Style x:Key="QuickButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#E6FFFFFF"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Padding" Value="9,3"/>
+            <Setter Property="Background" Value="#01000000"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <!-- 거의 투명한 배경: 버튼 영역 전체가 클릭 가능 (완전 투명이면 아래 게임으로 클릭이 통과) -->
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <TextBlock x:Name="tx" Text="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}"
+                                       Effect="{StaticResource TextStrokeEffect}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,4">
+        <Button x:Name="BtnLog" Style="{StaticResource QuickButton}" Content="기록" Click="BtnLog_Click" ToolTip="최근 대사 기록"/>
+        <Button x:Name="BtnSkip" Style="{StaticResource QuickButton}" Content="스킵" Click="BtnSkip_Click" ToolTip="메시지 고속 스킵"/>
+        <Button x:Name="BtnAuto" Style="{StaticResource QuickButton}" Content="자동" Click="BtnAuto_Click" ToolTip="메시지 자동 넘김"/>
+        <Button x:Name="BtnSpeed" Style="{StaticResource QuickButton}" Content="속도 1.0x" Click="BtnSpeed_Click" ToolTip="자동 넘김 속도"/>
+        <Button x:Name="BtnQSave" Style="{StaticResource QuickButton}" Content="Q.저장" Click="BtnQSave_Click" ToolTip="퀵 세이브"/>
+        <Button x:Name="BtnQLoad" Style="{StaticResource QuickButton}" Content="Q.불러오기" Click="BtnQLoad_Click" ToolTip="퀵 로드"/>
+    </StackPanel>
+</UserControl>

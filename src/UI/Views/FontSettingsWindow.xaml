@@ -1,0 +1,146 @@
+﻿<Window x:Class="RocketRPG.Views.FontSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="글꼴 설정 (UI 및 인게임 텍스트)" Height="620" Width="540"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        ResizeMode="NoResize" FontFamily="Segoe UI, 맑은 고딕" FontSize="12"
+        Background="#FFF0F0F0">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TabControl x:Name="FontTabs" Grid.Row="0" Background="#FFF0F0F0" Margin="0,0,0,10">
+            <!-- 탭 1: 에뮬레이터 UI 글꼴 -->
+            <TabItem Header="에뮬레이터 UI 글꼴">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Margin="0,0,0,8" Foreground="#FF333333" TextWrapping="Wrap"
+                               Text="RocketRPG 프로그램 창과 메뉴 UI에 적용할 시스템 글꼴을 선택합니다."/>
+
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="글꼴 검색:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="SearchFontBox" Grid.Column="1" Padding="4,2" TextChanged="SearchFontBox_TextChanged"/>
+                        <Button x:Name="BtnClearFontSearch" Grid.Column="2" Content="초기화" Width="55" Margin="6,0,0,0" Click="BtnClearFontSearch_Click"/>
+                    </Grid>
+
+                    <Border Grid.Row="2" Background="White" BorderBrush="#FFA0A0A0" BorderThickness="1">
+                        <ListBox x:Name="FontListBox" BorderThickness="0" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" SelectionChanged="FontListBox_SelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Source}" FontFamily="{Binding}" FontSize="13" Margin="4,2"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <GroupBox Grid.Row="3" Header="미리보기" Margin="0,8,0,0" Padding="8,6">
+                        <TextBlock x:Name="PreviewText" TextWrapping="Wrap" FontSize="14"
+                                   Text="다람쥐 헌 쳇바퀴에 타고파. The quick brown fox jumps over the lazy dog. 0123456789"
+                                   MinHeight="36"/>
+                    </GroupBox>
+                </Grid>
+            </TabItem>
+
+            <!-- 탭 2: 인게임 텍스트 글꼴 (RocketFontSystem) -->
+            <TabItem Header="인게임 텍스트 글꼴">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="InGameIntroText" Grid.Row="0" Margin="0,0,0,8" Foreground="#FF333333" TextWrapping="Wrap"
+                               Text="게임 내 대화창 및 텍스트 렌더링에 적용할 글꼴을 설정합니다 (EasyRPG, mkxp-z, MV/MZ 적용)."/>
+
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <CheckBox x:Name="ChkGameDefaultFont" Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,6"
+                                  Content="게임 기본 글꼴 사용 (글꼴을 바꾸지 않음)" IsChecked="True"
+                                  Checked="ChkGameDefaultFont_Changed" Unchecked="ChkGameDefaultFont_Changed"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="글꼴 검색:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="SearchInGameFontBox" Grid.Row="1" Grid.Column="1" Padding="4,2" TextChanged="SearchInGameFontBox_TextChanged"/>
+                        <Button x:Name="BtnClearInGameFontSearch" Grid.Row="1" Grid.Column="2" Content="초기화" Width="55" Margin="6,0,0,0" Click="BtnClearInGameFontSearch_Click"/>
+                    </Grid>
+
+                    <Border Grid.Row="2" Background="White" BorderBrush="#FFA0A0A0" BorderThickness="1">
+                        <ListBox x:Name="InGameFontListBox" BorderThickness="0" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" SelectionChanged="InGameFontListBox_SelectionChanged">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Source}" FontFamily="{Binding}" FontSize="13" Margin="4,2"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <!-- 크기 및 굵기 설정 -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,4">
+                        <CheckBox x:Name="ChkDefaultSize" Content="기본 크기 사용" IsChecked="True" VerticalAlignment="Center"
+                                  Checked="ChkDefaultSize_Changed" Unchecked="ChkDefaultSize_Changed"/>
+                        <TextBlock Text="크기:" VerticalAlignment="Center" Margin="16,0,6,0"/>
+                        <Slider x:Name="SliderFontSize" Minimum="10" Maximum="32" Value="14" Width="110" VerticalAlignment="Center"
+                                IsEnabled="False" ValueChanged="SliderFontSize_ValueChanged"/>
+                        <TextBlock x:Name="TxtFontSize" Text="14px" Width="40" Margin="6,0,0,0" VerticalAlignment="Center"/>
+
+                        <CheckBox x:Name="ChkInGameBold" Content="굵은 글꼴(Bold)" Margin="20,0,0,0" VerticalAlignment="Center"
+                                  Checked="ChkInGameBold_Changed" Unchecked="ChkInGameBold_Changed"/>
+                    </StackPanel>
+
+                    <!-- 미리보기: 2000/2003 게임이면 게임 화면처럼(12px 흑백을 확대), 아니면 윈도우 글자 그대로 -->
+                    <GroupBox Grid.Row="4" x:Name="PreviewGroup" Header="미리보기" Margin="0,4,0,0" Padding="6">
+                        <Border Background="#FF182848" Padding="8,6" MinHeight="44">
+                            <Grid>
+                                <TextBlock x:Name="InGamePreviewText" TextWrapping="Wrap" Foreground="White" FontSize="14" LineHeight="20"
+                                           Text="용사여, 환영합니다! 이것은 대화창 글꼴 미리보기입니다. 0123456789 ABC"/>
+                                <Image x:Name="EasyRpgPreview" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Fill"
+                                       HorizontalAlignment="Left" SnapsToDevicePixels="True" Visibility="Collapsed"/>
+                            </Grid>
+                        </Border>
+                    </GroupBox>
+                    <!-- 게임 글꼴이 PC에 없을 때 -->
+                    <DockPanel Grid.Row="5" Margin="0,8,0,0" ToolTip="XP/VX/VX Ace 게임이 쓰는 글꼴이 PC에 없을 때 대신 보여 줄 글꼴입니다. '자동'은 글꼴 이름으로 종류(고딕·명조·손글씨·픽셀)를 짐작해 비슷한 글꼴을 고릅니다.">
+                        <TextBlock Text="게임 글꼴이 없을 때:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="CmbMissingFallback" MaxDropDownHeight="300">
+                            <ComboBox.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate></ComboBox.ItemsPanel>
+                        </ComboBox>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- 하단 공통 버튼 영역 -->
+        <DockPanel Grid.Row="1">
+            <Button x:Name="BtnResetDefault" Content="기본값으로 복원(_R)" Width="130" Height="26"
+                    DockPanel.Dock="Left" Click="BtnResetDefault_Click"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                <Button x:Name="BtnOk" Content="확인" Width="75" Height="26" Margin="6,0,0,0" IsDefault="True" Click="BtnOk_Click"/>
+                <Button x:Name="BtnCancel" Content="취소" Width="75" Height="26" Margin="6,0,0,0" IsCancel="True" Click="BtnCancel_Click"/>
+                <Button x:Name="BtnApply" Content="적용(_A)" Width="75" Height="26" Margin="6,0,0,0" Click="BtnApply_Click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

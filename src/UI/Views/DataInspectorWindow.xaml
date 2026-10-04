@@ -1,0 +1,156 @@
+<Window x:Class="RocketRPG.Views.DataInspectorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="스위치 &amp; 변수 관리자 (Data Inspector)" Height="560" Width="720"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        FontFamily="Segoe UI, 맑은 고딕" FontSize="12"
+        Background="#FFF0F0F0">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 상단 안내 문구 -->
+        <TextBlock Grid.Row="0" Margin="0,0,0,8" Foreground="#FF333333" TextWrapping="Wrap"
+                   Text="실시간으로 게임 내 스위치와 변수를 모니터링하고 값을 수정하거나 고정(Freeze)할 수 있습니다."/>
+
+        <!-- 스위치 / 변수 탭 -->
+        <TabControl x:Name="DataTabs" Grid.Row="1" Background="White">
+            <!-- 스위치 탭 -->
+            <TabItem Header="스위치 (Switches)">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 검색 바 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="검색 (ID / 이름):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="SearchSwitchBox" Grid.Column="1" Padding="4,2" TextChanged="SearchSwitchBox_TextChanged"/>
+                        <Button x:Name="BtnClearSwitchSearch" Grid.Column="2" Content="초기화" Width="60" Margin="6,0,0,0" Click="BtnClearSwitchSearch_Click"/>
+                    </Grid>
+
+                    <!-- 스위치 목록 -->
+                    <ListView x:Name="ListSwitches" Grid.Row="1" BorderThickness="1" BorderBrush="#FFCCCCCC"
+                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Item" ScrollViewer.CanContentScroll="True" ScrollViewer.IsDeferredScrollingEnabled="False">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="ID" Width="55" DisplayMemberBinding="{Binding Id}"/>
+                                <GridViewColumn Header="스위치 이름" Width="260" DisplayMemberBinding="{Binding Name}"/>
+                                <GridViewColumn Header="상태" Width="80">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock FontWeight="Bold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="OFF"/>
+                                                        <Setter Property="Foreground" Value="#FF888888"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Value}" Value="True">
+                                                                <Setter Property="Text" Value="ON"/>
+                                                                <Setter Property="Foreground" Value="#FF009900"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Freeze" Width="65">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsFrozen}" HorizontalAlignment="Center" Click="SwitchFreeze_Click"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="제어" Width="90">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="토글 (Toggle)" Padding="6,1" Click="SwitchToggle_Click"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Grid>
+            </TabItem>
+
+            <!-- 변수 탭 -->
+            <TabItem Header="변수 (Variables)">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 검색 바 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="검색 (ID / 이름):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="SearchVarBox" Grid.Column="1" Padding="4,2" TextChanged="SearchVarBox_TextChanged"/>
+                        <Button x:Name="BtnClearVarSearch" Grid.Column="2" Content="초기화" Width="60" Margin="6,0,0,0" Click="BtnClearVarSearch_Click"/>
+                    </Grid>
+
+                    <!-- 변수 목록 -->
+                    <ListView x:Name="ListVariables" Grid.Row="1" BorderThickness="1" BorderBrush="#FFCCCCCC"
+                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Item" ScrollViewer.CanContentScroll="True" ScrollViewer.IsDeferredScrollingEnabled="False">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="ID" Width="55" DisplayMemberBinding="{Binding Id}"/>
+                                <GridViewColumn Header="변수 이름" Width="230" DisplayMemberBinding="{Binding Name}"/>
+                                <GridViewColumn Header="현재값" Width="120" DisplayMemberBinding="{Binding Value}"/>
+                                <GridViewColumn Header="Freeze" Width="65">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsFrozen}" HorizontalAlignment="Center" Click="VariableFreeze_Click"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="HUD 핀" Width="60">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsPinned}" HorizontalAlignment="Center" Click="VariablePin_Click" ToolTip="게임 화면 좌상단 HUD에 이 변수를 고정 표시합니다."/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="값 수정" Width="170">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBox x:Name="TxtNewVal" Width="85" Padding="3,1" Margin="0,0,4,0" KeyDown="TxtNewVal_KeyDown"/>
+                                                <Button Content="적용" Width="45" Padding="4,1" Click="VariableApply_Click"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- 하단 상태 바 -->
+        <DockPanel Grid.Row="2" Margin="0,8,0,0">
+            <TextBlock x:Name="StatusText" Text="● 실시간 동기화 중 (1초마다)" VerticalAlignment="Center" Foreground="#FF0066CC" DockPanel.Dock="Left"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                <Button x:Name="BtnRefresh" Content="새로고침(_R)" Width="85" Height="26" Margin="0,0,6,0" Click="BtnRefresh_Click"/>
+                <Button x:Name="BtnClose" Content="닫기(_C)" Width="75" Height="26" IsCancel="True" Click="BtnClose_Click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

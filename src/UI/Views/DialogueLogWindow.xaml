@@ -1,0 +1,47 @@
+<Window x:Class="RocketRPG.Views.DialogueLogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="대사 기록 (Dialogue Log)" Height="460" Width="560"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        FontFamily="Segoe UI, 맑은 고딕" FontSize="12"
+        Background="#FFF0F0F0">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 상단 헤더 -->
+        <TextBlock Grid.Row="0" Margin="0,0,0,8" Foreground="#FF333333" FontWeight="SemiBold"
+                   Text="게임 내에서 출력된 최근 대사 기록입니다 (최대 100개 저장)."/>
+
+        <!-- 대사 리스트 -->
+        <Border Grid.Row="1" Background="White" BorderBrush="#FFA0A0A0" BorderThickness="1" SnapsToDevicePixels="True">
+            <ListBox x:Name="LogListBox" BorderThickness="0" Background="White" Padding="6" HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="6,4" Margin="0,2" Background="#FFFDFDFD" BorderBrush="#FFE0E0E0" BorderThickness="0,0,0,1">
+                            <DockPanel LastChildFill="True">
+                                <Button DockPanel.Dock="Right" Content="복사" Width="48" Height="22" Margin="8,0,0,0" VerticalAlignment="Top"
+                                        ToolTip="이 대사만 클립보드에 복사" Click="BtnCopyOne_Click"/>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="#FF1E1E1E" LineHeight="18"/>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <!-- 하단 툴바 -->
+        <DockPanel Grid.Row="2" Margin="0,10,0,0">
+            <Button x:Name="BtnClear" Content="기록 지우기(_E)" Width="95" Height="26" DockPanel.Dock="Left" Click="BtnClear_Click"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                <Button x:Name="BtnCopyAll" Content="전체 복사(_A)" Width="90" Height="26" Margin="0,0,6,0" Click="BtnCopyAll_Click"/>
+                <Button x:Name="BtnClose" Content="닫기(_C)" Width="75" Height="26" IsCancel="True" Click="BtnClose_Click"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

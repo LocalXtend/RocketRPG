@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>RocketRPGInstaller</AssemblyName>
+    <RootNamespace>RocketRPG.Installer</RootNamespace>
+    <ApplicationManifest>installer.manifest</ApplicationManifest>
+    <ApplicationIcon>..\UI\Resources\RocketRPG.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\UI\Resources\RocketRPG.ico" Link="RocketRPG.ico" />
+    <EmbeddedResource Include="..\..\dist\payload.zip" LogicalName="payload.zip" Condition="Exists('..\..\dist\payload.zip')" />
+  </ItemGroup>
+</Project>

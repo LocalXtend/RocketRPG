@@ -1,0 +1,16 @@
+<Window x:Class="RocketRPG.Installer.InstallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="RocketRPG 설치" Height="360" Width="560"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
+    <StackPanel Margin="24">
+        <TextBlock Text="RocketRPG 설치" FontSize="22" FontWeight="Bold" Margin="0,0,0,4"/>
+        <TextBlock x:Name="InfoText" Foreground="#555" Margin="0,0,0,16"
+                   Text="C:\Program Files\RocketRPG 에 설치됩니다. 이전 버전은 자동으로 제거됩니다."/>
+        <CheckBox x:Name="DesktopCheck" Content="바탕화면 바로가기 생성" IsChecked="True" Margin="0,4"/>
+        <CheckBox x:Name="StartMenuCheck" Content="시작 메뉴 바로가기 생성" IsChecked="True" Margin="0,4"/>
+        <Button Content="설치(_I)" Width="140" Height="34" HorizontalAlignment="Left" Margin="0,20,0,0" Click="OnInstall"/>
+        <ProgressBar x:Name="Progress" Height="8" Minimum="0" Maximum="100" Margin="0,16,0,4"/>
+        <TextBlock x:Name="LogText" Foreground="#333" TextWrapping="Wrap"/>
+    </StackPanel>
+</Window>
