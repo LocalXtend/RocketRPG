@@ -9,8 +9,8 @@ MIT는 RocketRPG가 직접 만든 코드에만 적용되며, 함께 배포하는
 |---|---|---|---|
 | EasyRPG Player (RocketRPG 수정본, 0.8.1.1 기반) | GPL-3.0-or-later | https://github.com/LocalXtend/EasyRPG_Patch | 수정함. 릴리즈마다 같은 버전 태그와 소스 압축(`RocketRPG-<버전>-easyrpg-source.zip`)을 함께 올립니다 |
 | liblcf 0.8.1, inih r58 | MIT, BSD-3-Clause | https://github.com/EasyRPG/liblcf · https://github.com/benhoyt/inih | EasyRPG Player 안에 정적 링크 |
-| mkxp-z 2.4.2 (커밋 a5d5749) | GPL-2.0-or-later, OpenSSL 3 포함 빌드라 **GPL-3.0**으로 배포 | https://github.com/mkxp-z/mkxp-z/tree/a5d574984c68a7a2692fb9b212871f549af80874 | 수정하지 않음. SDL2, SDL_sound, OpenAL Soft(LGPL), PhysFS, Ogg/Vorbis, FreeType, pixman, OpenSSL 3.3.1(Apache-2.0) 포함 |
-| Ruby 3.0.0p0 / 3.1.3p185 | Ruby License / BSD-2-Clause | https://github.com/ruby/ruby | mkxp-z용 |
+| mkxp-z 2.4.2 (원본 a5d5749, RocketRPG 빌드 `rocketrpg-2.4.2-r1`) | GPL-2.0-or-later, OpenSSL 3 포함 빌드라 **GPL-3.0**으로 배포 | https://github.com/LocalXtend/mkxp-z-copy/releases/tag/rocketrpg-2.4.2-r1 | 코드는 고치지 않고 빌드 설정만 바꿔 GitHub Actions로 빌드. SDL2, SDL_image, SDL_ttf, SDL_sound, OpenAL Soft·libiconv(LGPL), PhysFS, Ogg/Vorbis/Theora, FreeType, pixman, libpng, uchardet, FluidSynth(LGPL), OpenSSL 3.6.4(Apache-2.0) 포함 |
+| Ruby 3.1.3 | Ruby License / BSD-2-Clause | https://github.com/mkxp-z/ruby/tree/mkxp-z-3.1.3 | mkxp-z용 |
 | MSYS2 UCRT64 라이브러리 (SDL2/SDL3, FluidSynth, libsndfile, mpg123, LAME, GLib, libiconv/libintl, Readline, ncurses, GCC 런타임, winpthreads, FreeType, HarfBuzz, Graphite2, ICU, PCRE2, pixman, libpng, fmt, Ogg/Vorbis/Opus/FLAC, SpeexDSP, libxmp, PortAudio, Brotli, bzip2, Expat, zlib) | 각 라이브러리 라이선스 (Zlib, LGPL-2.1+, GPL-3.0+(Readline, GCC 런타임 예외), MIT, BSD, FTL, Unicode 등) | https://packages.msys2.org/ | EasyRPG Player가 쓰는 DLL. 동적 링크라 같은 이름의 DLL로 바꿔 끼울 수 있습니다 |
 | GeneralUser GS 1.471 (사운드폰트) | GeneralUser GS License v2.0 | https://schristiancollins.com/generaluser.php | MIDI 소리 |
 | 나눔고딕 | SIL Open Font License 1.1 | https://hangeul.naver.com/font | XP/VX/Ace 기본 글꼴 대체용 |
@@ -25,7 +25,7 @@ MIT는 RocketRPG가 직접 만든 코드에만 적용되며, 함께 배포하는
 
 ### GPL 구성요소의 소스 받기
 - **EasyRPG Player 수정본**: https://github.com/LocalXtend/EasyRPG_Patch — RocketRPG 버전과 같은 태그(예: `v1.0.0`). 같은 소스를 각 RocketRPG 릴리즈에 압축 파일로도 첨부합니다. 빌드 방법은 저장소의 `rocketrpg/README.md`에 있습니다.
-- **mkxp-z**: 위 커밋의 원본 소스. RocketRPG는 mkxp-z를 수정하지 않았습니다.
+- **mkxp-z**: https://github.com/LocalXtend/mkxp-z-copy 의 `rocketrpg-2.4.2-r1` 태그(원본 a5d5749 + 빌드 설정). 같은 태그의 릴리즈에 빌드 결과와 함께, 안에 들어간 모든 라이브러리의 정확한 소스(`deps-source` zip, 목록은 `deps-sources.txt`)가 있습니다. mkxp-z 소스는 각 RocketRPG 릴리즈에도 압축 파일로 첨부합니다.
 - 실행 파일을 내려받을 수 있는 동안 같은 곳(위 저장소와 각 릴리즈)에서 그 실행 파일의 소스도 계속 받을 수 있게 둡니다. 소스를 받을 수 없으면 저장소 이슈로 알려 주세요.
 
 ## RPG Maker와 게임 파일

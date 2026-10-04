@@ -98,63 +98,51 @@ if (Test-Path $playerExe) {
 }
 
 # 2. mkxp-z Native Runtime
+# mkxp-z 2.4.2 (원본 a5d5749)을 RocketRPG 포크의 GitHub Actions가 빌드한 릴리즈에서 받습니다.
+# 소스·의존 라이브러리 소스는 같은 릴리즈에 있습니다. 태그를 바꾸면 해시도 함께 바꾸세요.
+$mkxpTag = 'rocketrpg-2.4.2-r1'
+$mkxpZipSha256 = 'd0224e31554caee9e2d3ceb7f230eb16350014ccc4d1ec44a38bdf32a67b2a9d'
+$mkxpZipUrl = "https://github.com/LocalXtend/mkxp-z-copy/releases/download/$mkxpTag/mkxp-z-$mkxpTag-win64.zip"
+$mkxpFiles = @('mkxp-z.exe', 'x64-msvcrt-ruby310.dll', 'zlib1.dll')
 $mkxpExe = Join-Path $mkxpDir 'mkxp-z.exe'
 $mkxpAlt = Join-Path $mkxpDir 'RocketRenderMKXP.exe'
-$ruby300 = Join-Path $mkxpDir 'x64-msvcrt-ruby300.dll'
-$ruby310 = Join-Path $mkxpDir 'x64-msvcrt-ruby310.dll'
-$zlib = Join-Path $mkxpDir 'zlib1.dll'
+$mkxpStamp = Join-Path $mkxpDir 'mkxp-z.version.txt'
+$cacheStamp = Join-Path $cacheMkxpDir 'mkxp-z.version.txt'
 
-$needMkxp = $Force -or (-not (Test-Path $mkxpExe)) -or ((Get-Item $mkxpExe).Length -lt 1000000) `
-    -or (-not (Test-Path $ruby300)) -or (-not (Test-Path $ruby310)) -or (-not (Test-Path $zlib))
+function Test-MkxpSet([string]$dir, [string]$stamp) {
+    if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw).Trim() -ne $mkxpTag) { return $false }
+    foreach ($f in $mkxpFiles) { if (-not (Test-Path (Join-Path $dir $f))) { return $false } }
+    return $true
+}
 
-if ($needMkxp) {
-    Write-Host "[2/2] Provisioning mkxp-z..."
-    $legacyTempDir = Join-Path $env:TEMP 'mkxp_test'
+# 예전에 받던 Ruby 3.0 DLL은 mkxp-z.exe가 쓰지 않으므로 배포 폴더에 남기지 않습니다.
+$oldRuby = Join-Path $mkxpDir 'x64-msvcrt-ruby300.dll'
+if (Test-Path $oldRuby) { [IO.File]::Delete($oldRuby) }
 
-    $hasPersistentCache = (Test-Path (Join-Path $cacheMkxpDir 'mkxp-z.exe')) -and `
-                          (Test-Path (Join-Path $cacheMkxpDir 'x64-msvcrt-ruby300.dll')) -and `
-                          (Test-Path (Join-Path $cacheMkxpDir 'x64-msvcrt-ruby310.dll')) -and `
-                          (Test-Path (Join-Path $cacheMkxpDir 'zlib1.dll'))
-
-    $hasLegacyTemp = (Test-Path (Join-Path $legacyTempDir 'mkxp-z.exe')) -and `
-                     (Test-Path (Join-Path $legacyTempDir 'x64-msvcrt-ruby300.dll')) -and `
-                     (Test-Path (Join-Path $legacyTempDir 'x64-msvcrt-ruby310.dll')) -and `
-                     (Test-Path (Join-Path $legacyTempDir 'zlib1.dll'))
-
-    if ($hasPersistentCache) {
+if ($Force -or -not (Test-MkxpSet $mkxpDir $mkxpStamp)) {
+    Write-Host "[2/2] Provisioning mkxp-z ($mkxpTag)..."
+    if (-not $Force -and (Test-MkxpSet $cacheMkxpDir $cacheStamp)) {
         Write-Host "  Using cached mkxp-z binaries from persistent cache..."
-        Copy-Item (Join-Path $cacheMkxpDir 'mkxp-z.exe') $mkxpExe -Force
-        Copy-Item (Join-Path $cacheMkxpDir 'x64-msvcrt-ruby300.dll') $ruby300 -Force
-        Copy-Item (Join-Path $cacheMkxpDir 'x64-msvcrt-ruby310.dll') $ruby310 -Force
-        Copy-Item (Join-Path $cacheMkxpDir 'zlib1.dll') $zlib -Force
-    } elseif ($hasLegacyTemp) {
-        Write-Host "  Using cached mkxp-z binaries from temp..."
-        Copy-Item (Join-Path $legacyTempDir 'mkxp-z.exe') $mkxpExe -Force
-        Copy-Item (Join-Path $legacyTempDir 'x64-msvcrt-ruby300.dll') $ruby300 -Force
-        Copy-Item (Join-Path $legacyTempDir 'x64-msvcrt-ruby310.dll') $ruby310 -Force
-        Copy-Item (Join-Path $legacyTempDir 'zlib1.dll') $zlib -Force
-        # Save to persistent cache
-        Copy-Item (Join-Path $legacyTempDir 'mkxp-z.exe') (Join-Path $cacheMkxpDir 'mkxp-z.exe') -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $legacyTempDir 'x64-msvcrt-ruby300.dll') (Join-Path $cacheMkxpDir 'x64-msvcrt-ruby300.dll') -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $legacyTempDir 'x64-msvcrt-ruby310.dll') (Join-Path $cacheMkxpDir 'x64-msvcrt-ruby310.dll') -Force -ErrorAction SilentlyContinue
-        Copy-Item (Join-Path $legacyTempDir 'zlib1.dll') (Join-Path $cacheMkxpDir 'zlib1.dll') -Force -ErrorAction SilentlyContinue
     } else {
-        $rawBase = 'https://raw.githubusercontent.com/kurayamiblackheart/kurayshinyrevamp/main'
-        Write-Host "  Downloading mkxp-z executable..."
-        Invoke-WebRequest -Uri "$rawBase/Game.exe" -OutFile $mkxpExe -TimeoutSec 60 -UseBasicParsing
-        Write-Host "  Downloading Ruby 3.0 runtime..."
-        Invoke-WebRequest -Uri "$rawBase/x64-msvcrt-ruby300.dll" -OutFile $ruby300 -TimeoutSec 60 -UseBasicParsing
-        Write-Host "  Downloading Ruby 3.1 runtime..."
-        Invoke-WebRequest -Uri "$rawBase/x64-msvcrt-ruby310.dll" -OutFile $ruby310 -TimeoutSec 60 -UseBasicParsing
-        Write-Host "  Downloading zlib1..."
-        Invoke-WebRequest -Uri "$rawBase/zlib1.dll" -OutFile $zlib -TimeoutSec 60 -UseBasicParsing
-
-        # Save to persistent cache
-        Copy-Item $mkxpExe (Join-Path $cacheMkxpDir 'mkxp-z.exe') -Force -ErrorAction SilentlyContinue
-        Copy-Item $ruby300 (Join-Path $cacheMkxpDir 'x64-msvcrt-ruby300.dll') -Force -ErrorAction SilentlyContinue
-        Copy-Item $ruby310 (Join-Path $cacheMkxpDir 'x64-msvcrt-ruby310.dll') -Force -ErrorAction SilentlyContinue
-        Copy-Item $zlib (Join-Path $cacheMkxpDir 'zlib1.dll') -Force -ErrorAction SilentlyContinue
+        $tmpZip = Join-Path $env:TEMP "mkxp-z-$mkxpTag-win64.zip"
+        $tmpExtract = Join-Path $env:TEMP "mkxp-z-$mkxpTag"
+        Write-Host "  Downloading $mkxpZipUrl"
+        Invoke-WebRequest -Uri $mkxpZipUrl -OutFile $tmpZip -TimeoutSec 120 -UseBasicParsing
+        $hash = (Get-FileHash $tmpZip -Algorithm SHA256).Hash.ToLower()
+        if ($hash -ne $mkxpZipSha256) { throw "mkxp-z download hash mismatch: $hash (expected $mkxpZipSha256)" }
+        if (Test-Path $tmpExtract) { [IO.Directory]::Delete($tmpExtract, $true) }
+        Expand-Archive -Path $tmpZip -DestinationPath $tmpExtract -Force
+        foreach ($f in $mkxpFiles) {
+            $src = Get-ChildItem -Path $tmpExtract -Filter $f -Recurse -File | Select-Object -First 1
+            if (-not $src) { throw "$f not found in $mkxpZipUrl" }
+            Copy-Item $src.FullName (Join-Path $cacheMkxpDir $f) -Force
+        }
+        Set-Content -Path $cacheStamp -Value $mkxpTag -Encoding ASCII
+        [IO.File]::Delete($tmpZip)
+        [IO.Directory]::Delete($tmpExtract, $true)
     }
+    foreach ($f in $mkxpFiles) { Copy-Item (Join-Path $cacheMkxpDir $f) (Join-Path $mkxpDir $f) -Force }
+    Set-Content -Path $mkxpStamp -Value $mkxpTag -Encoding ASCII
 }
 
 if (Test-Path $mkxpExe) {

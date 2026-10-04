@@ -179,9 +179,10 @@ $playerRepo = Join-Path $root 'build\easyrpg\Player'
 $erpgZip = Join-Path $dist "RocketRPG-$ver-easyrpg-source.zip"
 git -C $playerRepo archive --format=zip --prefix="EasyRPG_Patch-$ver/" -o $erpgZip HEAD
 if ($LASTEXITCODE -ne 0) { throw 'EasyRPG source archive failed' }
-$mkxpCommit = 'a5d574984c68a7a2692fb9b212871f549af80874'
-$mkxpCache = Join-Path $root "build\mkxp-z-$mkxpCommit.zip"
-if (-not (Test-Path $mkxpCache)) { Invoke-WebRequest "https://github.com/mkxp-z/mkxp-z/archive/$mkxpCommit.zip" -OutFile $mkxpCache -UseBasicParsing }
+# mkxp-z는 setup_runtimes.ps1이 받는 포크 태그의 소스 (의존 라이브러리 소스는 그 태그의 릴리즈에 있음)
+$mkxpTag = (Select-String -Path (Join-Path $PSScriptRoot 'setup_runtimes.ps1') -Pattern "^\`$mkxpTag = '(.+)'").Matches[0].Groups[1].Value
+$mkxpCache = Join-Path $root "build\mkxp-z-$mkxpTag.zip"
+if (-not (Test-Path $mkxpCache)) { Invoke-WebRequest "https://github.com/LocalXtend/mkxp-z-copy/archive/refs/tags/$mkxpTag.zip" -OutFile $mkxpCache -UseBasicParsing }
 Copy-Item $mkxpCache (Join-Path $dist "RocketRPG-$ver-mkxp-z-source.zip") -Force
 $zipFile = Join-Path $dist "RocketRPG-$ver-portable.zip"
 $payloadZip = Join-Path $dist 'payload.zip'
