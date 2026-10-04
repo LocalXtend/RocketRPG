@@ -119,6 +119,7 @@ public partial class Program
         // 1.0.0 멀티
         TestMultiRemoteKeys();
         TestMultiTitle();
+        TestChatColorCooldown();
         TestAssetCatalog();
         TestChoiceVote();
         TestRtpResolver();

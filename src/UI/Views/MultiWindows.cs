@@ -214,18 +214,24 @@ internal static class PasswordDialog
     }
 }
 
-/// <summary>채팅 글자색(5가지)과 고정 채팅 고르기. 고른 값은 다음에 열어도 그대로입니다.</summary>
+/// <summary>
+/// 채팅 글자색(5가지)과 고정 채팅 고르기. 고른 값은 다음에 열어도 그대로입니다.
+/// 흰색이 아닌 색으로 바꾸면 30초 동안은 다른 색(흰색 말고)으로 바꿀 수 없습니다 (색을 계속 바꾸지 못하게). 흰색으로는 언제든 바꿉니다.
+/// </summary>
 internal sealed class ChatStylePicker : StackPanel
 {
     static int _lastColor;
     static bool _lastFixed;
     readonly ComboBox _color = new() { Width = 110 };
+    readonly TextBlock _colorWait = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0), Foreground = SystemColors.GrayTextBrush };
     readonly CheckBox _fixed = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
         ToolTip = "글이 흘러가지 않고 화면 위쪽 한 줄에 6초 동안 머뭅니다. 90초에 한 번 보낼 수 있습니다." };
     readonly Func<int> _waitSeconds;
     readonly System.Windows.Threading.DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
+    bool _syncing;
     public int Color => _color.SelectedIndex;
     public bool Fixed => _fixed.IsChecked == true && _fixed.IsEnabled;
+
     public ChatStylePicker(Func<int> waitSeconds)
     {
         _waitSeconds = waitSeconds;
@@ -239,22 +245,38 @@ internal sealed class ChatStylePicker : StackPanel
                 Width = 14, Height = 14, Margin = new Thickness(0, 0, 6, 0), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1),
                 Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb((byte)(c >> 16), (byte)(c >> 8), (byte)c)),
             };
-            _color.Items.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { swatch, new TextBlock { Text = MultiChatStyle.Names[i] } } });
+            _color.Items.Add(new ComboBoxItem { Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { swatch, new TextBlock { Text = MultiChatStyle.Names[i] } } } });
         }
-        _color.SelectedIndex = Math.Clamp(_lastColor, 0, MultiChatStyle.Names.Length - 1);
+        _lastColor = Math.Clamp(_lastColor, 0, MultiChatStyle.Names.Length - 1);
+        _color.SelectedIndex = _lastColor;
         _fixed.IsChecked = _lastFixed;
-        _color.SelectionChanged += (_, _) => _lastColor = _color.SelectedIndex;
+        _color.SelectionChanged += (_, _) =>
+        {
+            if (_syncing || _color.SelectedIndex < 0) return;
+            if (MultiChatStyle.ColorCooldown.TryChange(_lastColor, _color.SelectedIndex, Environment.TickCount64)) _lastColor = _color.SelectedIndex;
+            RefreshWait();   // 못 바꿨으면 원래 색으로 돌아감
+        };
         _fixed.Click += (_, _) => _lastFixed = _fixed.IsChecked == true;
         Children.Add(_color);
+        Children.Add(_colorWait);
         Children.Add(_fixed);
         _timer.Tick += (_, _) => RefreshWait();
         Loaded += (_, _) => { RefreshWait(); _timer.Start(); };
         Unloaded += (_, _) => _timer.Stop();
     }
 
-    /// <summary>고정 채팅 남은 대기 시간을 보여 줌 (기다리는 동안은 고를 수 없음)</summary>
+    /// <summary>색 바꾸기·고정 채팅 남은 대기 시간을 보여 줌 (기다리는 동안은 고를 수 없음)</summary>
     void RefreshWait()
     {
+        // 다른 채팅 창에서 바꾼 색을 따라감
+        if (_color.SelectedIndex != _lastColor) { _syncing = true; _color.SelectedIndex = _lastColor; _syncing = false; }
+        int colorWait = MultiChatStyle.ColorCooldown.WaitSeconds(Environment.TickCount64);
+        for (int i = 1; i < _color.Items.Count; i++)
+            if (_color.Items[i] is ComboBoxItem item) item.IsEnabled = colorWait <= 0 || i == _lastColor;
+        _colorWait.Text = colorWait > 0 ? $"색 변경 {colorWait}초 뒤" : "";
+        _colorWait.Visibility = colorWait > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _color.ToolTip = "흰색이 아닌 색은 30초에 한 번 바꿀 수 있습니다. 흰색으로는 언제든 바꿀 수 있습니다.";
+
         int wait = _waitSeconds();
         _fixed.IsEnabled = wait <= 0;
         _fixed.Content = wait > 0 ? $"고정 ({wait}초 뒤 가능)" : "고정 (6초 · 90초마다)";

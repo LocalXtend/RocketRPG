@@ -52,6 +52,20 @@ public partial class Program
         Assert("Release all frees every key", k.Release().SequenceEqual(new[] { 0x26 }) && !k.Any);
     }
 
+    private static void TestChatColorCooldown()
+    {
+        Console.WriteLine("--- Testing ChatColorCooldown (30s per non-white color change) ---");
+        var c = new ChatColorCooldown();
+        Assert("Changing to a color is allowed at first", c.TryChange(0, 1, 1000));
+        Assert("Wait is 30 seconds after a color change", c.WaitSeconds(1000) == 30, c.WaitSeconds(1000).ToString());
+        Assert("Another color is blocked during the cooldown", !c.TryChange(1, 2, 20_000));
+        Assert("White is always allowed", c.TryChange(1, 0, 20_000));
+        Assert("Back to a color is still blocked after white", !c.TryChange(0, 3, 25_000));
+        Assert("Keeping the same color is not a change", c.TryChange(1, 1, 25_000));
+        Assert("Color change works again after 30 seconds", c.TryChange(0, 4, 31_000));
+        Assert("A new change restarts the cooldown", c.WaitSeconds(31_000) == 30);
+    }
+
     private static void TestMultiTitle()
     {
         Console.WriteLine("--- Testing MultiTitle (guest window title) ---");
