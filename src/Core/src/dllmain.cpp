@@ -38,4 +38,4 @@ RPG_EXPORT rstatus rpg_core_init(const wchar_t* portable_root) {
 
 RPG_EXPORT void rpg_core_shutdown() {}
 
-RPG_EXPORT const char* rpg_version() { return "1.0.0"; }
+RPG_EXPORT const char* rpg_version() { return "1.1.0"; }
