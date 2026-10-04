@@ -49,7 +49,11 @@ internal sealed class AssetViewerWindow : Window
     readonly bool _is2k;
     readonly CancellationTokenSource _cts = new();
     readonly SemaphoreSlim _thumbGate = new(2);
-    List<Row> _all = new();
+    List<Row> _all = new();        // 보이는 목록의 바탕 (기본 에셋 숨김이면 그것을 뺀 것)
+    List<Row> _everything = new(); // 기본 에셋까지 모두
+    // 쯔꾸르 기본 에셋(RTP, MV/MZ 새 프로젝트 기본 그림·소리)은 처음엔 숨김
+    readonly CheckBox _showDefaults = new() { Content = "쯔꾸르 기본 에셋도 보기", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
+        ToolTip = "RTP와 새 프로젝트에 들어 있는 기본 그림·소리도 목록에 보여 줍니다. 게임이 직접 고친 파일은 기본 에셋이 아닙니다." };
     readonly ObservableCollection<Row> _shown = new();
     readonly ListBox _folders = new() { MinWidth = 160 };
     readonly ListView _list = new();
@@ -92,7 +96,9 @@ internal sealed class AssetViewerWindow : Window
         top.Children.Add(new TextBlock { Text = "찾기:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
         top.Children.Add(_search);
         top.Children.Add(_kind);
+        top.Children.Add(_showDefaults);
         top.Children.Add(_count);
+        _showDefaults.Click += (_, _) => RebuildFolders();
 
         // 가운데: 목록 (가상화)
         var grid = new GridView();
@@ -181,13 +187,28 @@ internal sealed class AssetViewerWindow : Window
             return;
         }
         if (ct.IsCancellationRequested) return;
-        _all = entries.OrderBy(e => e.Rtp).ThenBy(e => e.Folder, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+        _everything = entries.OrderBy(e => e.Rtp).ThenBy(e => e.Folder, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
                       .Select(e => new Row { Entry = e }).ToList();
+        UiLog.Write($"assets: {_everything.Count} files ({_everything.Count(r => r.Entry.Rtp)} RTP, {_everything.Count(r => r.Entry.Default)} default, {_everything.Count(r => r.Entry.InArchive)} in archive)");
+        RebuildFolders();
+    }
+
+    /// <summary>기본 에셋을 보일지에 맞춰 폴더 목록을 다시 만듦 (고른 폴더는 남아 있으면 그대로)</summary>
+    void RebuildFolders()
+    {
+        string? keep = (_folders.SelectedItem as ListBoxItem)?.Tag as string;
+        _all = _showDefaults.IsChecked == true ? _everything : _everything.Where(r => !r.Entry.Default).ToList();
+        _folders.Items.Clear();
         _folders.Items.Add($"{AllFolders} ({_all.Count})");
+        int select = 0;
         foreach (var g in _all.GroupBy(r => r.Entry.Folder).OrderBy(g => g.First().Entry.Rtp).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (g.Key == keep) select = _folders.Items.Count;
             _folders.Items.Add(new ListBoxItem { Content = $"{(g.Key.Length == 0 ? "(맨 위)" : g.Key)} ({g.Count()})", Tag = g.Key });
-        _folders.SelectedIndex = 0;
-        UiLog.Write($"assets: {_all.Count} files ({_all.Count(r => r.Entry.Rtp)} RTP, {_all.Count(r => r.Entry.InArchive)} in archive)");
+        }
+        _folders.SelectedIndex = select;
+        int hidden = _everything.Count - _all.Count;
+        _showDefaults.Content = hidden > 0 || _showDefaults.IsChecked == true ? $"쯔꾸르 기본 에셋도 보기 ({_everything.Count(r => r.Entry.Default)}개)" : "쯔꾸르 기본 에셋도 보기";
         ApplyFilter();
     }
 

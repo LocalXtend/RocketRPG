@@ -21,6 +21,7 @@ public sealed class AssetEntry
     public bool Rtp { get; init; }
     public bool InArchive { get; init; }
     public bool Encrypted { get; init; }          // MV/MZ 암호화 (.rpgmvp 등)
+    public bool Default { get; set; }             // 쯔꾸르 기본 에셋 (RTP와 같은 파일, MV/MZ 새 프로젝트 기본 파일)
     internal string? FullPath { get; init; }      // 디스크 파일 (아카이브 안이면 null)
 }
 
@@ -128,6 +129,15 @@ public sealed class AssetCatalog : IDisposable
         {
             if (Is2k) AddDir(rtp, TopFolders(rtp), true);
             else AddDir(rtp, RgssFolders, true);
+        }
+
+        // 기본 에셋 표시: RTP 폴더의 파일, 그리고 게임에 들어 있지만 RTP·기본 목록과 경로·크기가 같은 파일
+        var rtpFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in list) if (e.Rtp) rtpFiles.Add($"{e.Path}|{e.Size}");
+        foreach (var e in list)
+        {
+            if (e.Rtp) { e.Default = true; continue; }
+            e.Default = rtpFiles.Contains($"{e.Path}|{e.Size}") || DefaultAssets.IsDefault(_engine, e.Path, e.Size, e.Encrypted);
         }
         return list;
     }
