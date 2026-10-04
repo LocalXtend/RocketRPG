@@ -1202,14 +1202,14 @@ public partial class Program
         // 1. Version Consistency Tests
         string repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
         string verTxtPath = Path.Combine(repoRoot, "ver.txt");
-        if (File.Exists(verTxtPath))
-        {
-            string ver = File.ReadAllText(verTxtPath).Trim();
-            Assert("ver.txt is 1.0.0", ver == "1.0.0", $"Actual={ver}");
-        }
-        Assert("UpdateService.CurrentVersion is 1.0.0", UpdateService.CurrentVersion == "1.0.0", $"Actual={UpdateService.CurrentVersion}");
+        // 버전은 ver.txt 하나가 기준: 앱(UpdateService)과 코어 DLL이 같은 버전이어야 함 (버전을 올릴 때 빠뜨린 곳 찾기)
+        string ver = File.Exists(verTxtPath) ? File.ReadAllText(verTxtPath).Trim() : UpdateService.CurrentVersion;
+        Assert("ver.txt is x.y.z", System.Text.RegularExpressions.Regex.IsMatch(ver, @"^\d+\.\d+\.\d+$"), $"Actual={ver}");
+        Assert("UpdateService.CurrentVersion matches ver.txt", UpdateService.CurrentVersion == ver, $"Actual={UpdateService.CurrentVersion} ver.txt={ver}");
         string coreVer = CoreInterop.Version();
-        Assert("CoreInterop.Version() is 1.0.0", coreVer == "1.0.0", $"Actual={coreVer}");
+        Assert("CoreInterop.Version() matches ver.txt", coreVer == ver, $"Actual={coreVer} ver.txt={ver}");
+        string appVer = (System.Diagnostics.FileVersionInfo.GetVersionInfo(typeof(UpdateService).Assembly.Location).ProductVersion ?? "").Split('+')[0];
+        Assert("RocketRPG.exe version matches ver.txt", appVer == ver, $"Actual={appVer} ver.txt={ver}");
         // 버전 비교: 정식 > 같은 번호의 베타, 베타끼리는 번호 순 (업데이트 받을 버전 설정)
         Assert("1.0.0 > 1.0.0-beta", UpdateService.IsNewerVersion("v1.0.0", "1.0.0-beta"));
         Assert("1.0.0-beta > 0.9.0", UpdateService.IsNewerVersion("v1.0.0-beta", "0.9.0"));
