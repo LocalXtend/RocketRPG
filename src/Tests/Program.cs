@@ -121,6 +121,7 @@ public partial class Program
         TestMultiTitle();
         TestChatColorCooldown();
         TestDeltaUpdate();
+        TestGameOwnership();
         TestAssetCatalog();
         TestChoiceVote();
         TestRtpResolver();

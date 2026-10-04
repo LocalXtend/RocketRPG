@@ -233,6 +233,7 @@ function countFail(id, p) {
 
 // 참가자가 연결을 청하면(want) 새로 만듦. 이전 연결은 닫고, 세션 번호(sid)로 늦게 온 옛 메시지를 걸러 냄.
 async function hostPeer(id) {
+  if (gated && !allowedIds.has(id)) { log("peer", id, "waits for the game check"); return; }
   if (!ensureTracks()) return;
   const old = peers.get(id);
   if (old) {
@@ -305,7 +306,11 @@ async function hostSignal(from, data) {
 }
 
 // 나간 참가자의 연결은 닫음 (새 참가자는 스스로 연결을 청함)
-function setMembers(ids) {
+// gated = 방장이 스팀 게임 중: 게임 확인을 마친 참가자(ids)만 연결을 받음
+let allowedIds = new Set(), gated = false;
+function setMembers(ids, gate) {
+  allowedIds = new Set(ids);
+  gated = !!gate;
   for (const [id, p] of peers) if (!ids.includes(id)) { p.pc.close(); peers.delete(id); }
   for (const id of [...peerFails.keys()]) if (!ids.includes(id)) peerFails.delete(id);
   for (const id of [...peerNat.keys()]) if (!ids.includes(id)) peerNat.delete(id);
@@ -653,7 +658,10 @@ wv.addEventListener("message", (e) => {
         hostId = m.id || "";
         if (role === "guest" && !(peers.get("host") && peers.get("host").pc.connectionState === "connected")) wantOffer();
         break;
-      case "members": if (role === "host") setMembers(m.ids || []); break;
+      case "members": if (role === "host") setMembers(m.ids || [], m.gate); break;
+      case "retry":   // 참가자: 게임 확인이 끝나 바로 다시 연결을 청함
+        if (role === "guest" && linkState() !== "connected") { failCount = 0; linkSent = ""; wantOffer(); }
+        break;
       case "signal":
         queueSignal(m.from, m.data || {});
         break;

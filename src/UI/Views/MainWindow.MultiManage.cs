@@ -24,7 +24,8 @@ public partial class MainWindow
         string label = m.Name + (m.Host ? " (방장)" : "") + (m.Id == _multi!.MyId ? " (나)" : "") + (m.Muted ? " (채팅 금지)" : "")
                        + (host && _multiBlocked.TryGetValue(m.Id, out var side)
                            ? side == "me" ? " (화면 연결 안 됨: 내 네트워크가 막음)" : side == "peer" ? " (화면 연결 안 됨: 상대 네트워크가 막음)" : " (화면 연결 안 됨)"
-                           : "");
+                           : "")
+                       + (host && !m.Host && _own.Status(m.Id) is { Length: > 0 } own ? $" ({own})" : "");
         // 이 사람의 핑·마커 색 (색만으로 구분하지 않도록 이름과 함께)
         uint pc = MultiChatStyle.PingColors[Math.Clamp(m.Color, 0, MultiChatStyle.PingColors.Length - 1)];
         var dot = new System.Windows.Shapes.Ellipse

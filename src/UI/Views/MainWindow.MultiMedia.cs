@@ -202,7 +202,7 @@ public partial class MainWindow
         return _multi.Reconnecting ? "연결이 끊겨 다시 연결하는 중..."
             : room.HostAway ? "방장 연결이 끊겼습니다.\n1분 안에 돌아오지 않으면 방이 없어집니다."
             : string.IsNullOrEmpty(room.Game) ? "방장이 게임을 켜기를 기다리는 중..."
-            : "";
+            : _ownGuestStatus;
     }
 
     bool _multiSyncing, _multiSyncAgain;
@@ -284,11 +284,13 @@ public partial class MainWindow
         if (role == "host")
         {
             MultiOnGameState();
-            string ids = string.Join(",", _multi.Members.Where(m => !m.Host).Select(m => m.Id));
-            if (ids != _multiMembersSent)
+            // 스팀 게임 중이면 게임 확인을 마친 참가자에게만 화면을 보냄
+            string ids = string.Join(",", _multi.Members.Where(m => !m.Host && _own.Allowed(m.Id)).Select(m => m.Id));
+            string key = (_own.Required ? "gate:" : "") + ids;
+            if (key != _multiMembersSent)
             {
-                _multiMembersSent = ids;
-                PostMulti(JsonSerializer.Serialize(new { t = "members", ids = ids.Length == 0 ? Array.Empty<string>() : ids.Split(',') }));
+                _multiMembersSent = key;
+                PostMulti(JsonSerializer.Serialize(new { t = "members", ids = ids.Length == 0 ? Array.Empty<string>() : ids.Split(','), gate = _own.Required }));
             }
             var (fps, _, bitrate) = MultiQuality(_multi.Room.Settings);
             string q = $"{fps}/{bitrate}";

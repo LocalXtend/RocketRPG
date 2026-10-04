@@ -39,6 +39,7 @@ public partial class MainWindow
         _multi.ErrorReceived += (_, text) => ShowHudMessage(text, 3000);
         _multi.SignalReceived += OnMultiSignal;
         InitMultiChat();
+        InitMultiOwnership();
         // 디스코드 '참가' 링크 (rocketrpg://join/코드)
         MultiLink.CodeReceived += code => _ = JoinByLinkAsync(code);
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RR_PROFILE_ROOT")))
@@ -175,6 +176,8 @@ public partial class MainWindow
         bool hideInfo = MultiHideInfo;   // 스트리머 모드(나 또는 방장): 방 제목·코드를 화면에 보이지 않음
         var room = _multi.Room;
         int count = _multi.Members.Count;
+        ResetOwnershipIfNeeded(inRoom, host);
+        if (inRoom && host) AskOwnership();   // 새로 들어온 참가자에게 게임 확인
 
         // 보이고 숨기는 규칙은 MultiMenuRules 한 곳에 (사용법 그림도 같은 규칙으로 그림)
         foreach (FrameworkElement item in new FrameworkElement[] { MultiRoomHeader, MultiCodeItem, MultiMembersMenu, MultiRoomSeparator, MultiChatItem, MultiChatLogItem,
@@ -217,6 +220,7 @@ public partial class MainWindow
         // 게임을 켜고 끄면 열려 있던 선택지 투표는 끝
         if (_vote.Open) OnGameChoice(_currentBridge!, new ChoiceState { Gen = _vote.Gen, Open = false });
         if (_multi is { InRoom: true, IsHost: true }) _multi.Send(new { t = "game", title });
+        OwnershipGameChanged(title.Length > 0);   // 스팀 게임이면 참가자도 가지고 있는지 확인
         SyncMultiMedia();   // 게임을 켜고 끌 때 방송 시작/멈춤
     }
 

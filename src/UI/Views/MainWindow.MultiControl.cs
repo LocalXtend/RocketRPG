@@ -59,7 +59,7 @@ public partial class MainWindow
         string from = m["from"]?.GetValue<string>() ?? "";
         int vk = m["k"] is JsonValue kv && kv.TryGetValue<int>(out int k) ? k : 0;
         bool down = m["d"] is JsonValue dv && dv.TryGetValue<int>(out int d) && d != 0;
-        if (!_multi.Members.Any(m => m.Id == from && !m.Host) || !IsGameKey(vk)) return;
+        if (!_multi.Members.Any(m => m.Id == from && !m.Host) || !IsGameKey(vk) || !_own.Allowed(from)) return;
         _remoteKeys.Touch(from, Environment.TickCount64);
         if (_vote.Open && down) return;   // 선택지 투표 중: 고르는 것은 방장 (떼기는 받음)
         if (_remoteKeys.Set(from, vk, down))
@@ -72,7 +72,7 @@ public partial class MainWindow
     {
         if (_multi is not { InRoom: true, IsHost: true } || !_multi.Room.Settings.Control) return;
         string from = m["from"]?.GetValue<string>() ?? "";
-        if (!_multi.Members.Any(x => x.Id == from && !x.Host)) return;
+        if (!_multi.Members.Any(x => x.Id == from && !x.Host) || !_own.Allowed(from)) return;
         _remoteKeys.Touch(from, Environment.TickCount64);
         var held = (m["keys"] as JsonArray ?? new JsonArray())
             .Select(n => n is JsonValue v && v.TryGetValue<int>(out int vk) ? vk : 0).Where(IsGameKey);
