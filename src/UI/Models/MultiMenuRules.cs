@@ -14,7 +14,7 @@ public static class MultiMenuRules
     /// <summary>규칙이 있는 항목이면 보이는지, 없으면 null (항상 그대로)</summary>
     public static bool? Visible(string? name, bool inRoom, bool host) => name switch
     {
-        "MultiRoomHeader" or "MultiCodeItem" or "MultiMembersMenu" or "MultiRoomSeparator" or "MultiChatItem" or "MultiChatLogItem" => inRoom,
+        "MultiRoomHeader" or "MultiCodeItem" or "MultiMembersMenu" or "MultiColorMenu" or "MultiRoomSeparator" or "MultiChatItem" or "MultiChatLogItem" => inRoom,
         "MultiCreateItem" or "MultiJoinItem" => !inRoom,
         "MultiControlItem" or "MultiExtraItem" or "MultiQualityMenu" or "MultiNotesEditItem" or "MultiDissolveItem" => inRoom && host,
         "MultiLeaveItem" => inRoom && !host,

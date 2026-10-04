@@ -163,6 +163,8 @@
                 <MenuItem x:Name="MultiJoinItem" Header="방 입장하기(_J)..." Click="OnMultiJoin" ToolTip="열린 방 목록에서 고르거나 방 코드로 들어갑니다."/>
                 <MenuItem x:Name="MultiSettingsMenu" Header="방 설정(_S)">
                     <MenuItem Header="이름 설정하기(_N)..." Click="OnMultiRename"/>
+                    <MenuItem x:Name="MultiColorMenu" Header="내 색 바꾸기(_O)" Visibility="Collapsed"
+                              ToolTip="핑·마커·이름표에 쓰는 내 색을 고릅니다. 같은 방의 다른 사람이 쓰는 색은 고를 수 없습니다."/>
                     <MenuItem x:Name="MultiHidePingsItem" Header="방에 오는 핑 안 보기(_P)" IsCheckable="True" Click="OnMultiHidePings"/>
                     <MenuItem x:Name="MultiHideChatItem" Header="방에 오는 채팅 안 보기(_T)" IsCheckable="True" Click="OnMultiHideChat"/>
                     <MenuItem x:Name="MultiControlItem" Header="조종 권한 켜기(_K)" IsCheckable="True" Click="OnMultiControl" Visibility="Collapsed"

@@ -124,6 +124,18 @@ export class Room extends DurableObject<Env> {
         this.broadcastMembers();
         return;
       }
+      case "color": {
+        // 핑·마커·이름표 색 바꾸기: 방 안에서 다른 사람이 쓰지 않는 색만
+        const color = msg.color;
+        if (typeof color !== "number" || !Number.isInteger(color) || color < 0 || color >= MAX_PLAYERS || color === me.color) return;
+        if (this.members().some(o => o.m.id !== me.id && o.m.color === color)) { this.error(ws, "color", "다른 사람이 쓰고 있는 색입니다."); return; }
+        me.color = color;
+        ws.serializeAttachment(me);
+        (info.colors ??= {})[me.clientId] = color;
+        await this.save();
+        this.broadcastMembers();
+        return;
+      }
       case "chat": {
         if (info.muted.includes(me.clientId)) { this.error(ws, "muted", "채팅이 금지되었습니다."); return; }
         const text = cleanText(msg.text, MAX_CHAT);

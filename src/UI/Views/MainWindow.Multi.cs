@@ -181,7 +181,7 @@ public partial class MainWindow
         if (inRoom && host) AskOwnership();   // 새로 들어온 참가자에게 게임 확인
 
         // 보이고 숨기는 규칙은 MultiMenuRules 한 곳에 (사용법 그림도 같은 규칙으로 그림)
-        foreach (FrameworkElement item in new FrameworkElement[] { MultiRoomHeader, MultiCodeItem, MultiMembersMenu, MultiRoomSeparator, MultiChatItem, MultiChatLogItem,
+        foreach (FrameworkElement item in new FrameworkElement[] { MultiRoomHeader, MultiCodeItem, MultiMembersMenu, MultiColorMenu, MultiRoomSeparator, MultiChatItem, MultiChatLogItem,
                                                                    MultiCreateItem, MultiJoinItem, MultiControlItem, MultiExtraItem, MultiQualityMenu, MultiNotesEditItem, MultiLeaveItem, MultiDissolveItem })
             Vis(item, MultiMenuRules.Visible(item.Name, inRoom, host) ?? true);
         if (hideInfo) Vis(MultiCodeItem, false);
@@ -190,6 +190,7 @@ public partial class MainWindow
         MultiMembersMenu.Header = $"참가자 ({count}/{room.Settings.Max})";
         MultiMembersMenu.Items.Clear();
         foreach (var m in _multi.Members) MultiMembersMenu.Items.Add(MemberMenuItem(m, host));
+        UpdateColorMenu();
         MultiControlItem.IsChecked = room.Settings.Control;
         MultiExtraItem.IsChecked = _ctl.Settings.MultiExtraMode;
         MultiNotesEditItem.IsChecked = room.Settings.NotesEditable;

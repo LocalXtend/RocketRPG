@@ -224,3 +224,51 @@ public partial class MainWindow
         }
     }
 }
+
+// ── 멀티: 내 색 고르기 (핑·마커·이름표) ──
+public partial class MainWindow
+{
+    string _colorAskedRoom = "";   // 고른 색을 이미 요청한 방 (들어갈 때 한 번)
+
+    /// <summary>방 설정 > 내 색 바꾸기: 8가지 색. 다른 사람이 쓰는 색은 그 사람 이름과 함께 고를 수 없게</summary>
+    void UpdateColorMenu()
+    {
+        if (_multi is not { InRoom: true } multi) return;
+        var me = multi.Members.FirstOrDefault(m => m.Id == multi.MyId);
+        MultiColorMenu.Items.Clear();
+        for (int i = 0; i < MultiChatStyle.PingColors.Length; i++)
+        {
+            int color = i;
+            var owner = multi.Members.FirstOrDefault(m => m.Color == i && m.Id != multi.MyId);
+            uint c = MultiChatStyle.PingColors[i];
+            var dot = new System.Windows.Shapes.Ellipse
+            {
+                Width = 10, Height = 10, Stroke = System.Windows.Media.Brushes.DimGray, StrokeThickness = 1,
+                Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb((byte)(c >> 16), (byte)(c >> 8), (byte)c)),
+            };
+            var item = new MenuItem
+            {
+                Header = MenuText(MultiChatStyle.PingColorNames[i] + (owner != null ? $" ({owner.Name})" : "")),
+                Icon = dot, IsCheckable = true, IsChecked = me?.Color == i, IsEnabled = owner == null,
+            };
+            item.Click += (_, _) =>
+            {
+                item.IsChecked = me?.Color == color;   // 서버가 바꿔 주면 메뉴가 다시 그려짐
+                if (me?.Color == color) return;
+                _ctl.Settings.MultiColor = color;
+                _ctl.SaveSettings();
+                multi.Send(new { t = "color", color });
+            };
+            MultiColorMenu.Items.Add(item);
+        }
+        // 들어간 방에서 한 번: 전에 고른 색이 비어 있으면 그 색으로
+        string roomKey = multi.Room.Code + "/" + multi.MyId;
+        int want = _ctl.Settings.MultiColor;
+        if (me != null && roomKey != _colorAskedRoom)
+        {
+            _colorAskedRoom = roomKey;
+            if (want >= 0 && want < MultiChatStyle.PingColors.Length && me.Color != want && multi.Members.All(m => m.Color != want || m.Id == multi.MyId))
+                multi.Send(new { t = "color", color = want });
+        }
+    }
+}

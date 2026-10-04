@@ -5,6 +5,8 @@ public static class MultiChatStyle
     public static readonly string[] Names = ["흰색", "빨간색", "연노랑", "연하늘", "연분홍"];
     public static readonly uint[] Colors = [0xFFFFFF, 0xFF3838, 0xFFF2A6, 0xB8E5FF, 0xFFD0E7];
     public static readonly uint[] PingColors = [0xFFD34D, 0x65BBFF, 0xFF7373, 0x7DE09B, 0xC29AFF, 0xFFAB66, 0x80E7E4, 0xFF96D5];
+    /// <summary>사람마다 다른 색(핑·마커·이름표)의 이름</summary>
+    public static readonly string[] PingColorNames = ["노랑", "파랑", "빨강", "초록", "보라", "주황", "청록", "분홍"];
     public static uint ChatColor(int index) => Colors[System.Math.Clamp(index, 0, Colors.Length - 1)];
 
     /// <summary>채팅 창·채팅 기록 창이 함께 쓰는 글자색 쿨타임</summary>

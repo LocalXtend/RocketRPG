@@ -230,7 +230,7 @@ internal sealed class ChatStylePicker : StackPanel
     readonly System.Windows.Threading.DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
     bool _syncing;
     public int Color => _color.SelectedIndex;
-    public bool Fixed => _fixed.IsChecked == true && _fixed.IsEnabled;
+    public bool Fixed => _fixed.IsChecked == true && _waitSeconds() <= 0;
 
     public ChatStylePicker(Func<int> waitSeconds)
     {
@@ -256,7 +256,7 @@ internal sealed class ChatStylePicker : StackPanel
             if (MultiChatStyle.ColorCooldown.TryChange(_lastColor, _color.SelectedIndex, Environment.TickCount64)) _lastColor = _color.SelectedIndex;
             RefreshWait();   // 못 바꿨으면 원래 색으로 돌아감
         };
-        _fixed.Click += (_, _) => _lastFixed = _fixed.IsChecked == true;
+        _fixed.Click += (_, _) => { _lastFixed = _fixed.IsChecked == true; RefreshWait(); };
         Children.Add(_color);
         Children.Add(_colorWait);
         Children.Add(_fixed);
@@ -278,7 +278,8 @@ internal sealed class ChatStylePicker : StackPanel
         _color.ToolTip = "흰색이 아닌 색은 30초에 한 번 바꿀 수 있습니다. 흰색으로는 언제든 바꿀 수 있습니다.";
 
         int wait = _waitSeconds();
-        _fixed.IsEnabled = wait <= 0;
+        // 기다리는 동안은 켤 수 없지만, 켜 둔 것을 끄는 것은 됨 (보낸 뒤 체크된 채로 막혀 있지 않게)
+        _fixed.IsEnabled = wait <= 0 || _fixed.IsChecked == true;
         _fixed.Content = wait > 0 ? $"고정 ({wait}초 뒤 가능)" : "고정 (6초 · 90초마다)";
     }
 }
