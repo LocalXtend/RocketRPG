@@ -22,11 +22,13 @@ internal sealed class AboutWindow : Window
 
     readonly string _dir;
     readonly ListBox _list = new() { Width = 260 };
+    // 라이선스 원문(그냥 글)은 고정폭 글자로, 고지(THIRD_PARTY_NOTICES.md)는 마크다운으로 보여 줍니다.
     readonly TextBox _text = new()
     {
         IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         FontFamily = new FontFamily("Consolas, Malgun Gothic"), FontSize = 12, Padding = new Thickness(4),
     };
+    readonly MarkdownView _markdown = new() { Visibility = Visibility.Collapsed };
     readonly TextBlock _head = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) };
     readonly Button _source = new() { Content = "소스·홈페이지 열기", Padding = new Thickness(8, 1, 8, 1), Margin = new Thickness(0, 0, 6, 0) };
 
@@ -75,7 +77,9 @@ internal sealed class AboutWindow : Window
         var right = new DockPanel { Margin = new Thickness(8, 0, 0, 0) };
         DockPanel.SetDock(_head, Dock.Top);
         right.Children.Add(_head);
-        right.Children.Add(_text);
+        _markdown.FontFamily = FontFamily;
+        var texts = new Grid { Children = { _text, _markdown } };
+        right.Children.Add(texts);
         var body = new DockPanel { Margin = new Thickness(12, 0, 12, 0) };
         DockPanel.SetDock(_list, Dock.Left);
         body.Children.Add(_list);
@@ -124,11 +128,15 @@ internal sealed class AboutWindow : Window
         if (tag is "notices")
         {
             _head.Text = "함께 배포하는 구성요소와 라이선스, RPG Maker 관련 고지";
-            _text.Text = ReadText("THIRD_PARTY_NOTICES.md");
+            _markdown.Markdown = ReadText("THIRD_PARTY_NOTICES.md");
+            _markdown.Visibility = Visibility.Visible;
+            _text.Visibility = Visibility.Collapsed;
             _source.IsEnabled = false;
             return;
         }
         if (tag is not Component c) return;
+        _markdown.Visibility = Visibility.Collapsed;
+        _text.Visibility = Visibility.Visible;
         _head.Text = $"{c.Name} {c.Version}\n라이선스: {c.License}{(c.Modified ? " · RocketRPG가 수정함" : "")}\n소스: {c.Source}" +
                      (c.Note.Length > 0 ? $"\n{c.Note}" : "");
         _text.Text = c.Texts.Length == 0 ? "(원문은 위 소스 받는 곳의 파일 머리에 있습니다)"

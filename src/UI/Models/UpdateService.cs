@@ -97,6 +97,8 @@ public class UpdateService
         public ReleaseInfo? Release { get; set; }
         public AssetInfo? TargetAsset { get; set; }
         public bool IsInstalled { get; set; }
+        /// <summary>업데이트 내용 (릴리즈 본문, 마크다운)</summary>
+        public string ReleaseNotes { get; set; } = "";
     }
 
     /// <param name="includeBeta">베타(시험판) 릴리즈도 받을지 (설정 > 업데이트 받을 버전)</param>
@@ -161,7 +163,8 @@ public class UpdateService
             Release = release,
             TargetAsset = SelectAsset(release, installed),
             IsInstalled = installed,
-            Message = $"새로운 {(release.Prerelease ? "베타 " : "")}버전({release.TagName})이 출시되었습니다.\n\n[업데이트 내용]\n{release.Body}"
+            ReleaseNotes = release.Body ?? "",
+            Message = $"새로운 {(release.Prerelease ? "베타 " : "")}버전({release.TagName})이 출시되었습니다."
         };
     }
 

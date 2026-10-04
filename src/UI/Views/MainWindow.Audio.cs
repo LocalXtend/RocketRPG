@@ -160,13 +160,8 @@ public partial class MainWindow
                 return;
             }
 
-            var confirm = MessageBox.Show(this,
-                $"{result.Message}\n\n지금 다운로드하고 업데이트를 진행하시겠습니까?",
-                "RocketRPG 업데이트",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (confirm != MessageBoxResult.Yes) return;
+            var confirm = new UpdateNotesWindow(this, result.Message, result.ReleaseNotes, "지금 다운로드하고 업데이트를 진행하시겠습니까?");
+            if (confirm.ShowDialog() != true) return;
 
             var progressWnd = new UpdateProgressWindow(
                 result.TargetAsset.DownloadUrl,
