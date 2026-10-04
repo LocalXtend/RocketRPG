@@ -18,7 +18,7 @@ namespace RocketRPG.Models;
 /// hardware-accelerated frames to WPF RenderScreen (direct native surface hosting or shared texture).
 /// Completely replaces the legacy PrintWindow/BitBlt OS window capture loop.
 /// </summary>
-public class RocketRenderMKXP : IGameBridge, IDisposable
+public class RocketRenderMKXP : IGameBridge, IExtraModeTarget, IDisposable
 {
     private IntPtr _nativeInstance = IntPtr.Zero;
     private RubyBridge? _rubyBridge;
@@ -345,6 +345,13 @@ public class RocketRenderMKXP : IGameBridge, IDisposable
     public void SetRemoteKeys(string vkList) => _channel?.Send("rkeys", vkList);
     /// <summary>멀티: 방송 화면에도 ESP를 그림 (참가자가 도구 권한이 있을 때)</summary>
     public void SetEspShare(bool on) => _channel?.Send("espshare", on);
+
+    // 멀티 엑스트라 모드 (rocket_mkxp_agent.rb의 RocketExtra)
+    public bool ExtraSupported => _channel?.Connected == true;
+    public void SetExtraMode(bool on) => ExtraAgentCommands.Mode(_channel, on);
+    public void SetExtraGuests(IEnumerable<(string id, string name, string color)> guests) => ExtraAgentCommands.Guests(_channel, guests);
+    public void ExtraKey(string id, int vk, bool down) => ExtraAgentCommands.Key(_channel, id, vk, down);
+    public void ExtraHeld(string id, IEnumerable<int> keys) => ExtraAgentCommands.Held(_channel, id, keys);
 
     /// <summary>타일 인스펙터: 게임 해상도 기준 마우스 좌표 (null이면 해제)</summary>
     public void UpdateVirtualMouse(double? x, double? y)

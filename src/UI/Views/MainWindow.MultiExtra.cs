@@ -11,21 +11,25 @@ namespace RocketRPG.Views;
 // 조종 권한이 켜져 있을 때
 //   컨트롤 모드(기본): 참가자 키가 방장 캐릭터를 함께 움직입니다 (MainWindow.MultiControl).
 //   엑스트라 모드: 참가자마다 방장과 같은 모습의 캐릭터가 생기고, 참가자 키는 자기 캐릭터만 움직입니다.
-//                 캐릭터는 방장 화면 밖으로 나갈 수 없고, 이벤트에 말을 걸 수 있습니다 (rocket_extra.js). 지금은 MV/MZ만.
+//                 캐릭터는 방장 화면 밖으로 나갈 수 없고, 이벤트에 말을 걸 수 있습니다.
+//                 MV/MZ: rocket_extra.js, XP/VX/Ace: 루비 에이전트, 2000/2003: EasyRPG Player 수정본 (IExtraModeTarget).
 // 참가자에게는 방 relay "mode"로 지금 방식을 알려 안내 문구를 맞춥니다.
 public partial class MainWindow
 {
     const string ModeChannel = "mode";
     bool _extraSent;                 // 방장: 게임에 알린 엑스트라 모드 상태
+    IExtraModeTarget? _extraTarget;  // 방장: 그 상태를 알린 게임 (게임이 바뀌면 이전 게임은 끔)
     string _extraGuestsSent = "";    // 방장: 게임에 알린 참가자 목록
     string _extraModeBroadcast = ""; // 방장: 참가자에게 알린 방식 + 참가자 목록
     string _extraUnsupportedFor = "";// 방장: 'MV/MZ만 됨' 안내를 한 게임
     bool _guestExtra;                // 참가자: 방장이 엑스트라 모드를 씀
 
-    bool CurrentIsWebGame => ReferenceEquals(_currentBridge, _webRenderer) && _isNativeRunning && _ctl.Current.Engine is 6 or 7;
+    /// <summary>지금 게임이 엑스트라 모드를 받을 수 있으면 그 게임</summary>
+    IExtraModeTarget? CurrentExtraTarget => _isNativeRunning && _currentBridge is IExtraModeTarget t && t.ExtraSupported ? t : null;
+    bool CurrentSupportsExtra => CurrentExtraTarget != null;
 
-    /// <summary>방장: 지금 엑스트라 모드로 참가자 키를 받는지 (조종 권한 + 엑스트라 모드 + MV/MZ 게임)</summary>
-    bool ExtraActive => _multi is { InRoom: true, IsHost: true } && _multi.Room.Settings.Control && _ctl.Settings.MultiExtraMode && CurrentIsWebGame;
+    /// <summary>방장: 지금 엑스트라 모드로 참가자 키를 받는지 (조종 권한 + 엑스트라 모드 + 받을 수 있는 게임)</summary>
+    bool ExtraActive => _multi is { InRoom: true, IsHost: true } && _multi.Room.Settings.Control && _ctl.Settings.MultiExtraMode && CurrentSupportsExtra;
 
     void OnMultiExtra(object sender, RoutedEventArgs e)
     {
@@ -38,7 +42,7 @@ public partial class MainWindow
             MultiControlItem.IsChecked = true;
         }
         ShowHudMessage(_ctl.Settings.MultiExtraMode
-            ? CurrentIsWebGame || _currentBridge == null ? "엑스트라 모드: 참가자마다 캐릭터가 생깁니다." : "엑스트라 모드는 지금 MV/MZ 게임만 됩니다. 이 게임에서는 컨트롤 모드로 조작합니다."
+            ? CurrentSupportsExtra || _currentBridge == null ? "엑스트라 모드: 참가자마다 캐릭터가 생깁니다." : "엑스트라 모드는 지금 MV/MZ 게임만 됩니다. 이 게임에서는 컨트롤 모드로 조작합니다."
             : "컨트롤 모드: 참가자가 방장 캐릭터를 함께 조작합니다.", 4000);
         ReleaseRemoteKeys();   // 방식이 바뀌면 누르던 키는 뗌
         SyncExtra();
@@ -50,12 +54,15 @@ public partial class MainWindow
         if (_multi == null) return;
         bool host = _multi is { InRoom: true, IsHost: true };
         bool active = ExtraActive;
-        if (active != _extraSent)
+        var target = active ? CurrentExtraTarget : null;
+        if (active != _extraSent || !ReferenceEquals(target, _extraTarget))
         {
+            if (_extraTarget != null && !ReferenceEquals(target, _extraTarget)) _extraTarget.SetExtraMode(false);   // 바뀐 게임은 끔
             _extraSent = active;
+            _extraTarget = target;
             _extraGuestsSent = "";
-            _webRenderer?.SetExtraMode(active);
-            UiLog.Write($"multi: extra mode {(active ? "on" : "off")}");
+            target?.SetExtraMode(true);
+            UiLog.Write($"multi: extra mode {(active ? "on" : "off")} ({target?.GetType().Name ?? "-"})");
         }
         if (active)
         {
@@ -64,7 +71,7 @@ public partial class MainWindow
             if (key != _extraGuestsSent)
             {
                 _extraGuestsSent = key;
-                _webRenderer?.SetExtraGuests(guests.Select(m =>
+                target?.SetExtraGuests(guests.Select(m =>
                 {
                     uint c = MultiChatStyle.PingColors[Math.Clamp(m.Color, 0, MultiChatStyle.PingColors.Length - 1)];
                     return (m.Id, m.Name, $"#{c:X6}");
@@ -72,7 +79,7 @@ public partial class MainWindow
             }
         }
         // MV/MZ가 아닌 게임에서 엑스트라 모드를 고른 경우: 한 번 알림
-        if (host && _multi.Room.Settings.Control && _ctl.Settings.MultiExtraMode && _currentBridge != null && !CurrentIsWebGame && _extraUnsupportedFor != _currentDir)
+        if (host && _multi.Room.Settings.Control && _ctl.Settings.MultiExtraMode && _currentBridge != null && !CurrentSupportsExtra && _extraUnsupportedFor != _currentDir)
         {
             _extraUnsupportedFor = _currentDir ?? "";
             ShowHudMessage("엑스트라 모드는 지금 MV/MZ 게임만 됩니다. 이 게임에서는 컨트롤 모드로 조작합니다.", 5000);
@@ -107,14 +114,14 @@ public partial class MainWindow
     bool RouteExtraKey(string from, int vk, bool down)
     {
         if (!ExtraActive) return false;
-        if (!(_vote.Open && down)) _webRenderer.ExtraKey(from, RemoteKeyState.Normalize(vk), down);
+        if (!(_vote.Open && down)) _extraTarget?.ExtraKey(from, RemoteKeyState.Normalize(vk), down);
         return true;
     }
 
     bool RouteExtraHeld(string from, int[] keys)
     {
         if (!ExtraActive) return false;
-        _webRenderer.ExtraHeld(from, _vote.Open ? [] : keys.Select(RemoteKeyState.Normalize).Distinct());
+        _extraTarget?.ExtraHeld(from, _vote.Open ? [] : keys.Select(RemoteKeyState.Normalize).Distinct());
         return true;
     }
 }

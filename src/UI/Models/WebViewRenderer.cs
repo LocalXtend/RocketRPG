@@ -208,7 +208,7 @@ public class KeyMessage
     public bool Shift { get; set; }
 }
 
-public class WebViewRenderer : IGameBridge, IDisposable
+public class WebViewRenderer : IGameBridge, IExtraModeTarget, IDisposable
 {
     private readonly WebView2 _webView;
     private bool _isInitialized;
@@ -505,6 +505,7 @@ public class WebViewRenderer : IGameBridge, IDisposable
     // ── 멀티 엑스트라 모드 (rocket_extra.js) ──
     bool _extraOn;
     object[] _extraGuests = [];
+    public bool ExtraSupported => true;
 
     /// <summary>엑스트라 모드 켜고 끄기. 끄면 참가자 캐릭터가 모두 사라짐</summary>
     public void SetExtraMode(bool on)

@@ -222,7 +222,9 @@
                 s._rrLabel.anchor.x = 0.5;
                 s._rrLabel.anchor.y = 1;
                 s.addChild(s._rrLabel);
-                set._characterSprites.push(s);
+                // 방장 캐릭터 그림 바로 앞에 (방장 그림이 맨 끝이라고 여기는 플러그인이 있음)
+                const pi = set._characterSprites.findIndex(x => x._character === $gamePlayer);
+                if (pi >= 0) set._characterSprites.splice(pi, 0, s); else set._characterSprites.unshift(s);
                 set._tilemap.addChild(s);
                 sprites.set(id, s);
             }

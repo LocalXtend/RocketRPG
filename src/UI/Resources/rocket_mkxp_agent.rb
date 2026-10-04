@@ -122,6 +122,10 @@ module RocketBridge
       when 'espshare' then @esp_share = (args[0] == '1')
       when 'rctl'    then @rctl = (args[0] == '1'); RocketRemoteKeys.set([]) unless @rctl
       when 'rkeys'   then RocketRemoteKeys.set(args[0].to_s.split(',').map(&:to_i).select { |v| v > 0 && v < 256 }.first(32))
+      when 'xmode'   then RocketExtra.mode(args[0] == '1')
+      when 'xguests' then RocketExtra.set_guests(args[0])
+      when 'xkey'    then RocketExtra.key(args[0].to_s, args[1].to_i, args[2] == '1')
+      when 'xheld'   then RocketExtra.held(args[0].to_s, args[1].to_s.split(',').map(&:to_i).select { |v| v > 0 && v < 256 }.first(32))
       end
     rescue StandardError, ScriptError => e
       log("cmd #{kind}: #{e.class}: #{e.message}")
@@ -240,6 +244,7 @@ module RocketBridge
       if @bright_sprite && @frame % 60 == 0
         apply_bright if @bright_sprite.disposed? || (@bright_vp && @bright_vp.disposed?)
       end
+      RocketExtra.update if RocketExtra.on
       send_frame if @frames_fps > 0
       pause_loop if @paused
     end
@@ -789,6 +794,335 @@ begin
 rescue StandardError, ScriptError => e
   RocketBridge.instance_variable_set(:@font_error, "#{e.class}: #{e.message}")
 end
+# ---------------- 멀티 엑스트라 모드 (XP/VX/VX Ace) ----------------
+# 참가자마다 방장 캐릭터와 같은 모습의 캐릭터를 맵에 둡니다 (MV/MZ의 rocket_extra.js와 같은 규칙).
+#  - 방향키/숫자판 2468로 움직이고(Shift 달리기, VX/Ace), Z/Enter/Space로 앞의 이벤트에 말을 겁니다. 닿거나 밟아서 시작하는 이벤트도 됩니다.
+#  - 방장 화면(카메라) 밖으로는 못 가고, 방장이 움직여 화면 밖으로 밀리면 방장 자리로 옮깁니다.
+#  - 캐릭터는 게임 데이터($game_map 등)에 넣지 않아 저장 파일에 섞이지 않습니다. 그림은 맵 그림(Spriteset_Map)에 끼웁니다.
+# 명령: xmode 1/0, xguests (id \x01 이름 \x01 #색 를 \x02로 이음), xkey id vk 1/0, xheld id vk,vk,...
+module RocketExtra
+  DIR = { 0x25 => 4, 0x26 => 8, 0x27 => 6, 0x28 => 2, 0x62 => 2, 0x64 => 4, 0x66 => 6, 0x68 => 8 }.freeze
+  OK = [0x0D, 0x20, 0x5A].freeze
+  DASH = [0x10, 0xA0, 0xA1].freeze
+  LEASE = 1.5
+  Guest = Struct.new(:id, :name, :color, :order, :dash, :at, :char, :sprite, :spriteset, :label, :label_key, :map_id, :was_moving, :sprite_failed)
+  @on = false
+  @guests = {}
+
+  class << self
+    attr_reader :on, :guests
+
+    def now
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    def rgss
+      RocketBridge.rgss
+    end
+
+    def mode(on)
+      @on = on
+      clear unless on
+    end
+
+    def clear
+      @guests.each_value { |g| drop(g) }
+      @guests = {}
+    end
+
+    def set_guests(text)
+      want = {}
+      text.to_s.split("\x02").each do |row|
+        id, name, color = row.split("\x01", -1)
+        want[id] = [name.to_s, color.to_s] if id && !id.empty?
+      end
+      @guests.keys.each do |id|
+        next if want.key?(id)
+        drop(@guests[id])
+        @guests.delete(id)
+      end
+      want.each do |id, (name, color)|
+        if (g = @guests[id])
+          g.name = name
+          g.color = color
+        else
+          @guests[id] = Guest.new(id, name, color, [], false, now, nil, nil, nil, nil, nil, nil, false, nil)
+        end
+      end
+    end
+
+    def key(id, vk, down)
+      g = @guests[id] or return
+      g.at = now
+      if (d = DIR[vk])
+        g.order.delete(d)
+        g.order.push(d) if down
+      end
+      g.dash = down if DASH.include?(vk)
+      action(g.char) if down && OK.include?(vk) && g.char
+    end
+
+    def held(id, list)
+      g = @guests[id] or return
+      g.at = now
+      dirs = list.map { |k| DIR[k] }.compact
+      g.order.select! { |d| dirs.include?(d) }
+      dirs.each { |d| g.order.push(d) unless g.order.include?(d) }
+      g.dash = list.any? { |k| DASH.include?(k) }
+    end
+
+    # ---- 참가자 캐릭터 ----
+    def char_class
+      @char_class ||= Class.new(Game_Character) do
+        # 막혀서 못 간 앞자리(닿으면 시작하는 이벤트)
+        def check_event_trigger_touch(x, y)
+          RocketExtra.start_at(x, y, [1, 2], true) if RocketExtra.can_act?
+        end
+
+        # XP: 기본 규칙은 방장이 아닌 캐릭터를 그림 없는 이벤트(투명한 트리거 칸)에도 막습니다.
+        # 참가자 캐릭터는 방장처럼 그림 있는 이벤트에만 막히게 합니다. (게임이 통행 판정을 바꿨으면 그대로 둠)
+        if RocketBridge.rgss == 1 && Game_Character.instance_method(:passable?).arity == 3
+          def passable?(x, y, d)
+            new_x = x + (d == 6 ? 1 : d == 4 ? -1 : 0)
+            new_y = y + (d == 2 ? 1 : d == 8 ? -1 : 0)
+            return false unless $game_map.valid?(new_x, new_y)
+            return true if @through
+            return false unless $game_map.passable?(x, y, d, self)
+            return false unless $game_map.passable?(new_x, new_y, 10 - d)
+            $game_map.events.each_value do |ev|
+              return false if ev.x == new_x && ev.y == new_y && !ev.through && ev.character_name != ''
+            end
+            true
+          end
+        end
+      end
+    end
+
+    def sync_look(c)
+      p = $game_player
+      %i[@character_name @character_index @character_hue @transparent @opacity @blend_type].each do |iv|
+        c.instance_variable_set(iv, p.instance_variable_get(iv)) if p.instance_variable_defined?(iv)
+      end
+    end
+
+    def interpreter_running?
+      return true if $game_system.respond_to?(:map_interpreter) && $game_system.map_interpreter.running?
+      return true if $game_map.respond_to?(:interpreter) && $game_map.interpreter.running?
+      return true if $game_map.respond_to?(:any_event_starting?) && $game_map.any_event_starting?
+      false
+    rescue StandardError
+      true
+    end
+
+    def message_busy?
+      return true if $game_temp && $game_temp.respond_to?(:message_window_showing) && $game_temp.message_window_showing
+      if defined?($game_message) && $game_message
+        return $game_message.busy? if $game_message.respond_to?(:busy?)
+        return true if $game_message.respond_to?(:visible) && $game_message.visible
+      end
+      false
+    rescue StandardError
+      true
+    end
+
+    def can_act?
+      return false unless @on && RocketBridge.on_map? && $game_map && $game_player
+      return false if interpreter_running? || message_busy?
+      return false if $game_temp && $game_temp.respond_to?(:player_transferring) && $game_temp.player_transferring
+      return false if $game_player.respond_to?(:transfer?) && $game_player.transfer?
+      true
+    end
+
+    def in_view?(x, y)
+      cx, cy = RocketBridge.camera
+      dx = x - cx
+      dy = y - cy
+      dx += $game_map.width if dx < 0 && RocketBridge.loop_x?
+      dy += $game_map.height if dy < 0 && RocketBridge.loop_y?
+      w = Graphics.width / 32.0
+      h = Graphics.height / 32.0
+      dx > -0.01 && dy > -0.01 && dx <= w - 0.99 && dy <= h - 0.99
+    end
+
+    def front(x, y, d)
+      m = $game_map
+      if m.respond_to?(:round_x_with_direction)
+        [m.round_x_with_direction(x, d), m.round_y_with_direction(y, d)]
+      else
+        [x + (d == 6 ? 1 : d == 4 ? -1 : 0), y + (d == 2 ? 1 : d == 8 ? -1 : 0)]
+      end
+    end
+
+    def turn(c, d)
+      if c.respond_to?(:set_direction) then c.set_direction(d)
+      else
+        case d
+        when 2 then c.turn_down
+        when 4 then c.turn_left
+        when 6 then c.turn_right
+        when 8 then c.turn_up
+        end
+      end
+    end
+
+    def move(c, d)
+      x2, y2 = front(c.x, c.y, d)
+      return turn(c, d) unless in_view?(x2, y2)   # 화면 밖으로는 못 감
+      if c.respond_to?(:move_straight) then c.move_straight(d)
+      else
+        case d
+        when 2 then c.move_down
+        when 4 then c.move_left
+        when 6 then c.move_right
+        when 8 then c.move_up
+        end
+      end
+    end
+
+    def events_at(x, y)
+      m = $game_map
+      m.respond_to?(:events_xy) ? m.events_xy(x, y) : m.events.values.select { |e| e.x == x && e.y == y }
+    end
+
+    def normal?(ev)
+      return ev.normal_priority? if ev.respond_to?(:normal_priority?)
+      return ev.priority_type == 1 if ev.respond_to?(:priority_type)
+      !(ev.respond_to?(:over_trigger?) && ev.over_trigger?)
+    end
+
+    def start_at(x, y, triggers, normal)
+      return false if interpreter_running?
+      started = false
+      events_at(x, y).each do |ev|
+        next if ev.respond_to?(:jumping?) && ev.jumping?
+        next unless triggers.include?(ev.trigger) && normal?(ev) == normal
+        list = ev.instance_variable_get(:@list)
+        next unless list && list.size > 1
+        ev.start
+        started = true
+      end
+      started
+    end
+
+    # 확인 키: 선 자리 → 앞 (카운터 너머까지)
+    def action(c)
+      return false unless can_act? && !c.moving?
+      return true if start_at(c.x, c.y, [0], false)
+      d = c.direction
+      x2, y2 = front(c.x, c.y, d)
+      return true if start_at(x2, y2, [0, 1, 2], true)
+      if $game_map.respond_to?(:counter?) && $game_map.counter?(x2, y2)
+        x3, y3 = front(x2, y2, d)
+        return start_at(x3, y3, [0, 1, 2], true)
+      end
+      false
+    end
+
+    # ---- 매 프레임 (Graphics.update에서) ----
+    def update
+      return if @guests.empty? || !@on
+      unless RocketBridge.on_map? && $game_map && $game_player
+        @guests.each_value { |g| g.label.visible = false if g.label && !g.label.disposed? }
+        return
+      end
+      ss = RocketBridge.scene.instance_variable_get(:@spriteset)
+      return unless ss
+      act = can_act?
+      @guests.each_value do |g|
+        c = (g.char ||= char_class.new)
+        sync_look(c)
+        if g.map_id != $game_map.map_id
+          g.map_id = $game_map.map_id
+          c.moveto($game_player.x, $game_player.y)
+          turn(c, $game_player.direction)
+        end
+        if now - g.at > LEASE
+          g.order = []
+          g.dash = false
+        end
+        unless c.moving?
+          start_at(c.x, c.y, [1, 2], false) if g.was_moving && act
+          if !in_view?(c.x, c.y) then c.moveto($game_player.x, $game_player.y)
+          elsif act && !g.order.empty? then move(c, g.order.last)
+          end
+        end
+        g.was_moving = c.moving?
+        c.instance_variable_set(:@move_speed, g.dash && act && rgss >= 2 ? 5 : 4)
+        c.update
+        ensure_sprite(g, ss)
+        update_label(g)
+      end
+    rescue StandardError => e
+      RocketBridge.log("extra: #{e.class}: #{e.message}")
+    end
+
+    # 그림은 방장 캐릭터 그림 바로 앞에 끼웁니다. 기본 RPG Maker처럼 방장 그림이 목록 맨 끝이라고 여기는
+    # 스크립트가 많아서, 끝에 넣으면 게스트 그림을 방장 그림으로 착각했습니다 (little world: mode_off 오류).
+    def ensure_sprite(g, ss)
+      return if g.sprite && !g.sprite.disposed? && g.spriteset.equal?(ss)
+      return if g.sprite_failed.equal?(ss)
+      list = ss.instance_variable_get(:@character_sprites)
+      vp = ss.instance_variable_get(:@viewport1)
+      return unless list && vp
+      begin
+        g.sprite = Sprite_Character.new(vp, g.char)
+      rescue StandardError => e
+        g.sprite_failed = ss   # 이 맵 그림에서는 다시 만들지 않음 (게임이 바꾼 Sprite_Character와 맞지 않음)
+        RocketBridge.log("extra: sprite failed #{e.class}: #{e.message}")
+        return
+      end
+      g.spriteset = ss
+      at = list.index { |s| s.respond_to?(:character) && s.character.equal?($game_player) rescue false }
+      at ? list.insert(at, g.sprite) : list.unshift(g.sprite)
+    end
+
+    def update_label(g)
+      if g.label.nil? || g.label.disposed?
+        g.label = Sprite.new
+        g.label.bitmap = Bitmap.new(160, 24)
+        g.label.z = 9000
+        g.label.ox = 80
+        g.label_key = nil
+      end
+      key = "#{g.name}/#{g.color}"
+      if key != g.label_key
+        g.label_key = key
+        b = g.label.bitmap
+        b.clear
+        b.font.size = 16
+        b.font.outline = true if b.font.respond_to?(:outline=)
+        b.font.color = parse_color(g.color)
+        b.draw_text(0, 0, 160, 24, g.name, 1)
+      end
+      c = g.char
+      h = g.sprite && !g.sprite.disposed? ? g.sprite.src_rect.height : 48
+      h = 48 if h <= 0
+      g.label.x = c.screen_x
+      g.label.y = c.screen_y - h - 22
+      g.label.visible = !c.transparent
+    end
+
+    def parse_color(hex)
+      v = hex.to_s.delete('#').to_i(16)
+      Color.new((v >> 16) & 255, (v >> 8) & 255, v & 255)
+    end
+
+    def drop(g)
+      if g.sprite && !g.sprite.disposed?
+        list = g.spriteset ? g.spriteset.instance_variable_get(:@character_sprites) : nil
+        list.delete(g.sprite) if list
+        g.sprite.dispose
+      end
+      if g.label && !g.label.disposed?
+        g.label.bitmap.dispose if g.label.bitmap && !g.label.bitmap.disposed?
+        g.label.dispose
+      end
+      g.sprite = nil
+      g.label = nil
+    end
+  end
+end
+
 module Graphics
   class << self
     unless method_defined?(:rr_bridge_update)

@@ -185,6 +185,7 @@ module RocketAutotest
     # 선택지에서 아래 키를 더 눌러야 하면 다 누를 때까지 확인하지 않습니다.
     def confirm?(key)
       return false if @done || !c_key?(key) || !(@frame % 12).zero?
+      return @ex_press ? true : false if @phase == :extra
       # 맵 시간이 끝난 뒤엔 열린 대화를 닫을 때만 (아니면 앞 이벤트와의 대화가 끝없이 다시 시작됨)
       return false if @phase == :maps && @map_frames >= @per_map && !message_open?
       !(@choice_key && @downs_done.to_i < @downs_needed.to_i)
@@ -253,7 +254,13 @@ module RocketAutotest
         log("SCENE #{name}") if @scene_logs <= 200
       end
       track_choice
+      return extra_tick if @phase == :extra
       if @phase == :boot
+        if on_map? && $game_map && $game_map.map_id.to_i > 0 && ENV['RR_EXTRA_TEST'] == '1'
+          log("EXTRA begin map=#{$game_map.map_id}")
+          @phase = :extra
+          return
+        end
         if on_map? && $game_map && $game_map.map_id.to_i > 0
           @maps = map_list
           # 무작위 인카운트는 끔 (이벤트 전투는 그대로) — 전투 반복으로 시간을 쓰거나 강제 종료 부작용이 나지 않게
@@ -361,6 +368,119 @@ module RocketAutotest
       id, n = @maps[@index]
       log("GO #{id} #{n}")
       transfer(id)
+    end
+
+    # ---- 멀티 엑스트라 모드 시험 (RR_EXTRA_TEST=1): 첫 맵에서 가짜 참가자 캐릭터로 생성·이동·화면 제한·말 걸기·저장을 확인 ----
+    # 파이프가 없어 에이전트는 매 프레임 처리를 하지 않으므로 RocketExtra.update를 여기서 부릅니다.
+    def extra_tick
+      @et = (@et || 0) + 1
+      et = @et
+      unless defined?(RocketExtra)
+        log('EXTRA FAIL agent not loaded')
+        return finish
+      end
+      if et == 1
+        begin
+          Marshal.dump([$game_system, $game_map, $game_player, $game_party, $game_switches, $game_variables])
+          @ex_base_save = true
+        rescue StandardError => e
+          log("EXTRA save baseline FAIL before extra mode (game itself): #{e.class}: #{e.message}")
+        end
+        RocketExtra.mode(true)
+        RocketExtra.set_guests("t1\x01test guest\x01#ffd34d")
+        @ex_viol = 0
+      end
+      RocketExtra.update
+      g = RocketExtra.guests['t1']
+      c = g && g.char
+      p = $game_player
+      if et > 3 && c && !c.moving? && !RocketExtra.in_view?(c.x, c.y) && et != @ex_off
+        @ex_viol += 1
+      end
+      # 움직일 수 있을 때까지 기다림 (확인 키로 메시지를 넘김)
+      if et == 10 && !RocketExtra.can_act? && (@ex_wait = (@ex_wait || 0) + 1) < 2400
+        @ex_press = true
+        @et = 9
+        return
+      end
+      if et == 10
+        @ex_press = false
+        log("EXTRA waited #{@ex_wait} frames for the event to end") if @ex_wait
+        log("EXTRA spawn #{c && g.sprite && !g.sprite.disposed? && c.x == p.x && c.y == p.y ? 'ok' : 'FAIL'} at #{c ? "#{c.x},#{c.y}" : '-'} player #{p.x},#{p.y} image #{c ? c.character_name : '-'}")
+        @ex_start = c ? [c.x, c.y] : [0, 0]
+        log("EXTRA view gw=#{Graphics.width} gh=#{Graphics.height} cam=#{RocketBridge.camera.map { |v| v.round(2) }.inspect} inview=#{c && RocketExtra.in_view?(c.x, c.y)} map=#{$game_map.width}x#{$game_map.height}")
+        @ex_dirs = [2, 6, 4, 8]
+        @ex_moved = nil
+      end
+      # 방향마다 40프레임씩 눌러 보고 움직인 방향을 찾음
+      if et >= 10 && et < 170 && c
+        d = @ex_dirs[(et - 10) / 40]
+        vk = { 2 => 0x28, 4 => 0x25, 6 => 0x27, 8 => 0x26 }[d]
+        RocketExtra.held('t1', @ex_moved ? [] : [vk]) if et % 5 == 0
+        @ex_moved ||= d if [c.x, c.y] != @ex_start
+      end
+      if et == 170
+        RocketExtra.held('t1', [])
+        log("EXTRA move #{@ex_moved ? "ok dir #{@ex_moved}" : 'FAIL'} #{@ex_start.join(',')} -> #{c ? "#{c.x},#{c.y}" : '-'} canAct #{RocketExtra.can_act?}")
+        unless @ex_moved
+          pass = lambda do |ch, d|
+            x2, y2 = RocketExtra.front(ch.x, ch.y, d)
+            (ch.method(:passable?).arity == 2 ? ch.passable?(x2, y2) : ch.passable?(ch.x, ch.y, d)) rescue "err #{$!.message}"
+          end
+          log("EXTRA passable guest #{[2, 4, 6, 8].map { |d| pass.call(c, d) }.inspect} player #{[2, 4, 6, 8].map { |d| pass.call(p, d) }.inspect} order #{g.order.inspect} through #{c.instance_variable_get(:@through).inspect}")
+        end
+      end
+      if et == 200 && c
+        @ex_off = 201
+        # 화면 밖이면서 맵 안인 자리 (맵이 화면보다 작으면 건너뜀)
+        @ex_offx = (0...$game_map.width).find { |x| !RocketExtra.in_view?(x, p.y) }
+        if @ex_offx then c.moveto(@ex_offx, p.y) else log('EXTRA off-screen skipped (map fits the screen)') end
+      end
+      log("EXTRA off-screen #{@ex_offx} -> #{c && c.x == p.x && c.y == p.y ? 'back to host ok' : "FAIL #{c ? "#{c.x},#{c.y}" : '-'}"}") if et == 203 && @ex_offx
+      # 말 걸기: 결정 키 이벤트 아래 칸에 세우고 위를 보게 한 뒤 확인 키
+      if et == 210 && c && !RocketExtra.can_act? && (@ex_wait2 = (@ex_wait2 || 0) + 1) < 1200
+        @ex_press = true
+        @et = 209
+        return
+      end
+      if et == 210 && c
+        @ex_press = false
+        @ex_target = $game_map.events.values.find do |ev|
+          list = ev.instance_variable_get(:@list)
+          ev.trigger == 0 && RocketExtra.normal?(ev) && list && list.size > 1 &&
+            RocketExtra.events_at(ev.x, ev.y + 1).empty? && ev.y + 1 < $game_map.height
+        end
+        if @ex_target
+          p.moveto(@ex_target.x, @ex_target.y + 1)
+          c.moveto(@ex_target.x, @ex_target.y + 1)
+          RocketExtra.turn(c, 8)
+        else
+          log('EXTRA talk skipped (no talk event on this map)')
+        end
+      end
+      if et == 213 && @ex_target
+        ok = RocketExtra.action(c)
+        log("EXTRA talk #{ok ? 'ok' : 'FAIL'} event #{@ex_target.id} at #{@ex_target.x},#{@ex_target.y}")
+      end
+      if et == 230 && !@ex_base_save
+        log('EXTRA save not checked (game data cannot be dumped even without extra mode)')
+      elsif et == 230
+        begin
+          Marshal.dump([$game_system, $game_map, $game_player, $game_party, $game_switches, $game_variables])
+          log('EXTRA save clean')
+        rescue StandardError => e
+          log("EXTRA save FAIL #{e.class}: #{e.message}")
+        end
+      end
+      if et == 230
+        @ex_sprite = g && g.sprite
+        RocketExtra.mode(false)
+      end
+      if et == 232
+        log("EXTRA off #{@ex_sprite.nil? || @ex_sprite.disposed? ? 'sprites removed' : 'FAIL'}")
+        log("EXTRA DONE violations=#{@ex_viol}")
+        finish
+      end
     end
 
     def finish
