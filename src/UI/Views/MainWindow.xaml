@@ -158,6 +158,8 @@
                 <MenuItem x:Name="MultiChatItem" Header="채팅하기(_T)..." Click="OnMultiChatMenu" Visibility="Collapsed"
                           ToolTip="글은 이름 없이 게임 화면 위로 흘러갑니다. 누가 말했는지는 채팅 기록에서 볼 수 있습니다."/>
                 <MenuItem x:Name="MultiChatLogItem" Header="채팅 기록(_H)..." Click="OnMultiChatLog" Visibility="Collapsed"/>
+                <MenuItem x:Name="MultiSummonItem" Header="참가자 캐릭터 모두 부르기(_G)" Click="OnMultiSummon" Visibility="Collapsed"
+                          ToolTip="엑스트라 모드에서 참가자 캐릭터를 모두 내 캐릭터 곁으로 부릅니다. (방장 전용)"/>
                 <Separator x:Name="MultiRoomSeparator" Visibility="Collapsed"/>
                 <MenuItem x:Name="MultiCreateItem" Header="방 생성하기(_C)..." Click="OnMultiCreate" ToolTip="방 이름과 비밀번호를 정해 방을 만듭니다. 내 게임 화면을 참가자가 함께 봅니다."/>
                 <MenuItem x:Name="MultiJoinItem" Header="방 입장하기(_J)..." Click="OnMultiJoin" ToolTip="열린 방 목록에서 고르거나 방 코드로 들어갑니다."/>

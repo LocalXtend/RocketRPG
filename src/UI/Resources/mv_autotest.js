@@ -163,7 +163,7 @@
       return;
     }
     if (!window.$dataMap || !$gameMap || $gameMap.mapId() <= 0) { at.et--; return; }   // 맵을 불러오는 중: 이 단계를 건너뛰지 않음
-    if (et > 2 && c && !c.isMoving() && !c.rrInView(c.x, c.y) && et !== 271) at.exViolations++;
+    if (et > 2 && c && !c.isMoving() && !c.rrInView(c.x, c.y) && et !== 272 && et !== 253) at.exViolations++;
     if (et === 10 && c && !c.rrCanAct() && (at.exWaitAct = (at.exWaitAct || 0) + 1) < 2400) {
       // 이벤트·메시지가 끝나 움직일 수 있을 때까지 기다림 (확인 키로 메시지를 넘김)
       at.exPressOk = true;
@@ -188,10 +188,39 @@
     }
     if (et >= 10 && et < 130 && et % 10 === 0) send([at.exKey]);
     if (et >= 130 && et < 250 && et % 10 === 0) send([at.exBack]);
-    if (et === 130) log('EXTRA move ' + at.exDir + ' ' + (c && (c.x !== at.exStart[0] || c.y !== at.exStart[1]) ? 'ok' : 'FAIL') + ' ' + at.exStart + ' -> ' + (c ? c.x + ',' + c.y : '-'));
+    if (et === 130) log('EXTRA move ' + at.exDir + ' ' + (c && (c.x !== at.exStart[0] || c.y !== at.exStart[1]) ? 'ok' : 'FAIL') + ' ' + at.exStart + ' -> ' + (c ? c.x + ',' + c.y : '-') +
+      ' hostCanMove=' + $gamePlayer.canMove() + ' forcing=' + $gamePlayer.isMoveRouteForcing());
     if (et === 250) { send([]); log('EXTRA move back ' + (c ? c.x + ',' + c.y : '-') + ' camera violations ' + at.exViolations); }
-    if (et === 270 && c) c.locate($gamePlayer.x + $gameMap.screenTileX() + 5, $gamePlayer.y);
-    if (et === 274) log('EXTRA off-screen -> ' + (c && c.x === $gamePlayer.x && c.y === $gamePlayer.y ? 'back to host ok' : 'FAIL ' + (c ? c.x + ',' + c.y : '-')));
+    // 1.1.2: 같은 맵 순간이동 따라가기, 모두 부르기, 방장이 못 움직이면 멈춤, 방장이 숨으면 숨김
+    if (et === 252 && c && c.rrCanAct()) {
+      at.exTp = [3, -3, 4, -4].map(function (d) { return $gamePlayer.x + d; }).find(function (x) { return $gameMap.isValid(x, $gamePlayer.y) && c.rrInView(x, $gamePlayer.y); });
+      if (at.exTp !== undefined) $gamePlayer.locate(at.exTp, $gamePlayer.y); else log('EXTRA teleport skipped (no room on screen)');
+    }
+    if (et === 255 && c && at.exTp !== undefined) log('EXTRA teleport same map -> ' + (c.x === $gamePlayer.x && c.y === $gamePlayer.y ? 'followed ok' : 'FAIL ' + c.x + ',' + c.y));
+    if (et === 257 && c) { c.locate($gamePlayer.x + 1, $gamePlayer.y); ext.command({ op: 'summon' }); at.exSum = true; }
+    if (et === 259 && c && at.exSum) log('EXTRA summon -> ' + (c.x === $gamePlayer.x && c.y === $gamePlayer.y ? 'ok' : 'FAIL'));
+    if (et === 260 && c) {
+      // 이벤트가 방장을 묶어 둔 것처럼: '대기'를 반복하는 이동 경로
+      $gamePlayer.forceMoveRoute({ list: [{ code: 15, parameters: [60] }, { code: 0 }], repeat: true, skippable: false, wait: false });
+      at.exLock = [c.x, c.y];
+    }
+    if (et >= 260 && et < 268 && et % 2 === 0) send([0x28]);
+    if (et === 268 && c) {
+      send([]);
+      log('EXTRA host locked -> ' + (c.x === at.exLock[0] && c.y === at.exLock[1] ? 'guest stays ok' : 'FAIL guest moved'));
+      $gamePlayer._moveRouteForcing = false;
+      if ($gamePlayer.restoreMoveRoute) $gamePlayer.restoreMoveRoute();
+    }
+    if (et === 269 && c) $gamePlayer.setTransparent(true);
+    if (et === 270 && c) {
+      var sp3 = scene() && scene()._spriteset && scene()._spriteset._rrGuestSprites;
+      var lab = sp3 && sp3.get('t1') && sp3.get('t1')._rrLabel;
+      log('EXTRA host hidden -> ' + (c.isTransparent() && (!lab || !lab.visible) ? 'guest and name hidden ok' : 'FAIL'));
+      $gamePlayer.setTransparent(false);
+      log('EXTRA dash host=' + (ext.hostCanDash ? ext.hostCanDash() : '?') + ' disabled=' + $gameMap.isDashDisabled() + ' speed host ' + $gamePlayer.moveSpeed() + ' guest ' + c.moveSpeed());
+    }
+    if (et === 271 && c) c.locate($gamePlayer.x + $gameMap.screenTileX() + 5, $gamePlayer.y);
+    if (et === 275) log('EXTRA off-screen -> ' + (c && c.x === $gamePlayer.x && c.y === $gamePlayer.y ? 'back to host ok' : 'FAIL ' + (c ? c.x + ',' + c.y : '-')));
     if (et === 280 && c && !c.rrCanAct() && (at.exWaitTalk = (at.exWaitTalk || 0) + 1) < 1200) { at.exPressOk = true; at.et = 280; return; }
     if (et === 280) {
       at.exPressOk = false;
@@ -206,11 +235,11 @@
         });
       });
       if (!target) { log('EXTRA talk skipped (no talk event on this map)'); at.et = 300; return; }
-      $gamePlayer.locate(spot[0], spot[1]);
-      c.locate(spot[0], spot[1]);
-      c.setDirection(spot[2]);
+      $gamePlayer.locate(spot[0], spot[1]);   // 방장이 옮겨짐 → 참가자도 따라옴 (순간이동). 방향은 다음 프레임에 맞춤
       at.exTarget = target;
+      at.exSpot = spot;
     }
+    if (et === 282 && at.exTarget) { c.locate(at.exSpot[0], at.exSpot[1]); c.setDirection(at.exSpot[2]); }
     if (et === 283 && at.exTarget) {
       var before = 'canAct=' + c.rrCanAct() + ' msg=' + $gameMessage.isBusy() + ' tr=' + $gamePlayer.isTransferring() + ' chg=' + SceneManager.isSceneChanging() + ' map=' + (scene() instanceof Scene_Map) + ' on=' + window.__rocketExtra.on + ' moving=' + c.isMoving() + ' at ' + c.x + ',' + c.y + ' dir ' + c.direction() + ' event ' + at.exTarget.x + ',' + at.exTarget.y +
         ' trig ' + at.exTarget._trigger + ' prio ' + at.exTarget._priorityType + ' running=' + $gameMap.isEventRunning();

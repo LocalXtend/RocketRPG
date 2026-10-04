@@ -97,6 +97,17 @@ public partial class MainWindow
         else _extraModeBroadcast = "";
     }
 
+    /// <summary>방장: 참가자 캐릭터를 모두 내 곁으로 (멀티 메뉴, 단축키)</summary>
+    void SummonGuests()
+    {
+        if (_multi is not { InRoom: true, IsHost: true }) { ShowHudMessage("방장일 때 쓸 수 있습니다."); return; }
+        if (!ExtraActive || _extraTarget == null) { ShowHudMessage("엑스트라 모드에서 게임을 하는 중일 때 부를 수 있습니다."); return; }
+        _extraTarget.ExtraSummon();
+        ShowHudMessage("참가자 캐릭터를 모두 불렀습니다.", 2500);
+    }
+
+    void OnMultiSummon(object sender, RoutedEventArgs e) => SummonGuests();
+
     void InitMultiExtra()
     {
         _multi!.RelayReceived += (ch, from, data) =>

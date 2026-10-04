@@ -394,7 +394,7 @@ module RocketAutotest
       g = RocketExtra.guests['t1']
       c = g && g.char
       p = $game_player
-      if et > 3 && c && !c.moving? && !RocketExtra.in_view?(c.x, c.y) && et != @ex_off
+      if et > 3 && c && !c.moving? && !RocketExtra.in_view?(c.x, c.y) && et != @ex_off && et != 176
         @ex_viol += 1
       end
       # 움직일 수 있을 때까지 기다림 (확인 키로 메시지를 넘김)
@@ -422,6 +422,7 @@ module RocketAutotest
       if et == 170
         RocketExtra.held('t1', [])
         log("EXTRA move #{@ex_moved ? "ok dir #{@ex_moved}" : 'FAIL'} #{@ex_start.join(',')} -> #{c ? "#{c.x},#{c.y}" : '-'} canAct #{RocketExtra.can_act?}")
+        log("EXTRA why interp=#{RocketExtra.interpreter_running?} msg=#{RocketExtra.message_busy?} movable=#{RocketExtra.host_movable?} visible=#{RocketExtra.host_visible?} name=#{p.character_name.inspect} transparent=#{p.transparent} forcing=#{p.instance_variable_get(:@move_route_forcing).inspect} raw_movable=#{(p.movable? rescue 'n/a')} moving=#{p.moving?}")
         unless @ex_moved
           pass = lambda do |ch, d|
             x2, y2 = RocketExtra.front(ch.x, ch.y, d)
@@ -429,6 +430,45 @@ module RocketAutotest
           end
           log("EXTRA passable guest #{[2, 4, 6, 8].map { |d| pass.call(c, d) }.inspect} player #{[2, 4, 6, 8].map { |d| pass.call(p, d) }.inspect} order #{g.order.inspect} through #{c.instance_variable_get(:@through).inspect}")
         end
+      end
+      # 1.1.2: 같은 맵 순간이동 따라가기, 모두 부르기, 방장이 못 움직이면 멈춤, 방장이 숨으면 숨김
+      if et == 175 && c && RocketExtra.can_act?
+        @ex_tp = [3, -3, 4, -4].map { |d| p.x + d }.find { |x| $game_map.valid?(x, p.y) && RocketExtra.in_view?(x, p.y) }
+        if @ex_tp then p.moveto(@ex_tp, p.y) else log('EXTRA teleport skipped (no room on screen)') end
+      end
+      log("EXTRA teleport same map -> #{c.x == p.x && c.y == p.y ? 'followed ok' : "FAIL #{c.x},#{c.y}"}") if et == 178 && c && @ex_tp
+      if et == 180 && c
+        c.moveto(p.x + 1, p.y)
+        RocketExtra.summon
+        @ex_sum = true
+      end
+      log("EXTRA summon -> #{c.x == p.x && c.y == p.y ? 'ok' : 'FAIL'}") if et == 182 && c && @ex_sum
+      if et == 184 && c
+        # 이벤트가 방장을 묶어 둔 것처럼: '대기'를 반복하는 이동 경로
+        route = RPG::MoveRoute.new
+        route.repeat = true
+        route.skippable = false
+        route.list = [RPG::MoveCommand.new(15, [60]), RPG::MoveCommand.new(0)]
+        p.force_move_route(route)
+        @ex_lock = [c.x, c.y]
+      end
+      RocketExtra.held('t1', [0x28]) if et >= 184 && et < 194 && c
+      if et == 194 && c
+        RocketExtra.held('t1', [])
+        log("EXTRA host locked -> #{[c.x, c.y] == @ex_lock ? 'guest stays ok' : 'FAIL guest moved'}")
+        p.instance_variable_set(:@move_route_forcing, false)
+        orig = p.instance_variable_get(:@original_move_route)
+        if orig
+          p.instance_variable_set(:@move_route, orig)
+          p.instance_variable_set(:@move_route_index, p.instance_variable_get(:@original_move_route_index) || 0)
+        end
+      end
+      p.instance_variable_set(:@transparent, true) if et == 195 && c
+      if et == 197 && c
+        lab = g.label
+        log("EXTRA host hidden -> #{c.transparent && (lab.nil? || !lab.visible) ? 'guest and name hidden ok' : 'FAIL'}")
+        p.instance_variable_set(:@transparent, false)
+        log("EXTRA dash host=#{RocketExtra.host_can_dash?} speed host #{p.instance_variable_get(:@move_speed)} guest #{c.instance_variable_get(:@move_speed)}")
       end
       if et == 200 && c
         @ex_off = 201
@@ -451,12 +491,14 @@ module RocketAutotest
             RocketExtra.events_at(ev.x, ev.y + 1).empty? && ev.y + 1 < $game_map.height
         end
         if @ex_target
-          p.moveto(@ex_target.x, @ex_target.y + 1)
-          c.moveto(@ex_target.x, @ex_target.y + 1)
-          RocketExtra.turn(c, 8)
+          p.moveto(@ex_target.x, @ex_target.y + 1)   # 방장이 옮겨짐 → 참가자도 따라옴 (순간이동). 방향은 다음 프레임에 맞춤
         else
           log('EXTRA talk skipped (no talk event on this map)')
         end
+      end
+      if et == 212 && @ex_target
+        c.moveto(@ex_target.x, @ex_target.y + 1)
+        RocketExtra.turn(c, 8)
       end
       if et == 213 && @ex_target
         ok = RocketExtra.action(c)

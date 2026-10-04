@@ -182,7 +182,7 @@ public partial class MainWindow
 
         // 보이고 숨기는 규칙은 MultiMenuRules 한 곳에 (사용법 그림도 같은 규칙으로 그림)
         foreach (FrameworkElement item in new FrameworkElement[] { MultiRoomHeader, MultiCodeItem, MultiMembersMenu, MultiColorMenu, MultiRoomSeparator, MultiChatItem, MultiChatLogItem,
-                                                                   MultiCreateItem, MultiJoinItem, MultiControlItem, MultiExtraItem, MultiQualityMenu, MultiNotesEditItem, MultiLeaveItem, MultiDissolveItem })
+                                                                   MultiCreateItem, MultiJoinItem, MultiControlItem, MultiExtraItem, MultiSummonItem, MultiQualityMenu, MultiNotesEditItem, MultiLeaveItem, MultiDissolveItem })
             Vis(item, MultiMenuRules.Visible(item.Name, inRoom, host) ?? true);
         if (hideInfo) Vis(MultiCodeItem, false);
         MultiRoomHeader.Header = MenuText($"{(hideInfo ? "(방 제목 숨김)" : room.Settings.Title)} / 방 인원 {count}명{(_multi.Reconnecting ? " (다시 연결 중)" : "")}");

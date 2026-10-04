@@ -125,6 +125,7 @@ module RocketBridge
       when 'xmode'   then RocketExtra.mode(args[0] == '1')
       when 'xguests' then RocketExtra.set_guests(args[0])
       when 'xkey'    then RocketExtra.key(args[0].to_s, args[1].to_i, args[2] == '1')
+      when 'xsummon' then RocketExtra.summon
       when 'xheld'   then RocketExtra.held(args[0].to_s, args[1].to_s.split(',').map(&:to_i).select { |v| v > 0 && v < 256 }.first(32))
       end
     rescue StandardError, ScriptError => e
@@ -799,6 +800,9 @@ end
 #  - 방향키/숫자판 2468로 움직이고(Shift 달리기, VX/Ace), Z/Enter/Space로 앞의 이벤트에 말을 겁니다. 닿거나 밟아서 시작하는 이벤트도 됩니다.
 #  - 방장 화면(카메라) 밖으로는 못 가고, 방장이 움직여 화면 밖으로 밀리면 방장 자리로 옮깁니다.
 #  - 캐릭터는 게임 데이터($game_map 등)에 넣지 않아 저장 파일에 섞이지 않습니다. 그림은 맵 그림(Spriteset_Map)에 끼웁니다.
+#  - 방장이 움직일 수 없을 때(이벤트, 메시지, 이동 경로 강제 등)는 참가자도 못 움직이고, 방장 캐릭터가 숨겨져 있으면(타이틀 맵 등) 숨깁니다.
+#  - 달리기는 방장이 달릴 수 있을 때만 (VX/Ace, 맵의 달리기 금지·게임이 막은 달리기 포함). 기본 속도는 방장 속도를 따릅니다.
+#  - 방장이 순간이동하면(같은 맵 안도) 함께 옮겨지고, 방장은 모두를 곁으로 부를 수 있습니다 (명령 xsummon).
 # 명령: xmode 1/0, xguests (id \x01 이름 \x01 #색 를 \x02로 이음), xkey id vk 1/0, xheld id vk,vk,...
 module RocketExtra
   DIR = { 0x25 => 4, 0x26 => 8, 0x27 => 6, 0x28 => 2, 0x62 => 2, 0x64 => 4, 0x66 => 6, 0x68 => 8 }.freeze
@@ -903,6 +907,72 @@ module RocketExtra
       %i[@character_name @character_index @character_hue @transparent @opacity @blend_type].each do |iv|
         c.instance_variable_set(iv, p.instance_variable_get(iv)) if p.instance_variable_defined?(iv)
       end
+      c.instance_variable_set(:@transparent, true) unless host_visible?
+    end
+
+    # 방장 캐릭터가 보이는지 (그림 없음·투명이면 타이틀 맵이나 연출 중: 참가자도 숨김)
+    def host_visible?
+      p = $game_player
+      !p.transparent && p.character_name.to_s != ''
+    rescue StandardError
+      true
+    end
+
+    # 방장이 지금 움직일 수 있는지. VX/Ace의 movable?는 걷는 중이면 false라, 멈춰 있을 때 본 값을 씁니다
+    # (게임이 movable?를 바꿔 이동을 막은 경우도 따라감). XP는 이동 경로 강제를 봅니다.
+    def host_movable?
+      p = $game_player
+      return !p.instance_variable_get(:@move_route_forcing) unless p.respond_to?(:movable?)
+      @host_movable = (p.movable? ? true : false) unless p.moving?
+      @host_movable != false
+    rescue StandardError
+      true
+    end
+
+    # 방장이 지금 달릴 수 있는지 (VX/Ace): 대시 키를 누른 것처럼 게임의 dash?에 물어봅니다 (맵의 달리기 금지, 탈것,
+    # 게임이 바꾼 dash? 포함). 0.5초에 한 번만.
+    def host_can_dash?
+      return false if rgss < 2 || !$game_player.respond_to?(:dash?)
+      return @dash_ok if @dash_at && now - @dash_at < 0.5
+      @dash_at = now
+      @dash_ok = false
+      sc = Input.singleton_class
+      begin
+        sc.send(:alias_method, :rr_extra_press, :press?)
+        sc.send(:define_method, :press?) { |k| k == Input::A || k == :A ? true : rr_extra_press(k) }
+        @dash_ok = $game_player.dash? ? true : false
+      rescue StandardError
+        @dash_ok = false
+      ensure
+        begin
+          sc.send(:alias_method, :press?, :rr_extra_press)
+          sc.send(:remove_method, :rr_extra_press)
+        rescue StandardError
+        end
+      end
+      @dash_ok
+    end
+
+    # 방장이 순간이동했는지: 다른 맵이거나, 점프가 아닌데 한 번에 2칸 넘게 움직임 (같은 맵 안의 장소 이동)
+    def host_teleported?
+      p = $game_player
+      cur = [$game_map.map_id, p.x, p.y]
+      prev = @host_last
+      @host_last = cur
+      return false unless prev
+      return true if prev[0] != cur[0]
+      return false if p.respond_to?(:jumping?) && p.jumping?
+      (cur[1] - prev[1]).abs + (cur[2] - prev[2]).abs > 1
+    end
+
+    def summon
+      @summon = true
+    end
+
+    def to_host(g, c)
+      g.map_id = $game_map.map_id
+      c.moveto($game_player.x, $game_player.y)
+      turn(c, $game_player.direction)
     end
 
     def interpreter_running?
@@ -930,7 +1000,7 @@ module RocketExtra
       return false if interpreter_running? || message_busy?
       return false if $game_temp && $game_temp.respond_to?(:player_transferring) && $game_temp.player_transferring
       return false if $game_player.respond_to?(:transfer?) && $game_player.transfer?
-      true
+      host_movable? && host_visible?
     end
 
     def in_view?(x, y)
@@ -1028,14 +1098,12 @@ module RocketExtra
       ss = RocketBridge.scene.instance_variable_get(:@spriteset)
       return unless ss
       act = can_act?
+      jump = host_teleported? || @summon
+      @summon = false
       @guests.each_value do |g|
         c = (g.char ||= char_class.new)
         sync_look(c)
-        if g.map_id != $game_map.map_id
-          g.map_id = $game_map.map_id
-          c.moveto($game_player.x, $game_player.y)
-          turn(c, $game_player.direction)
-        end
+        to_host(g, c) if jump || g.map_id != $game_map.map_id
         if now - g.at > LEASE
           g.order = []
           g.dash = false
@@ -1047,7 +1115,9 @@ module RocketExtra
           end
         end
         g.was_moving = c.moving?
-        c.instance_variable_set(:@move_speed, g.dash && act && rgss >= 2 ? 5 : 4)
+        # 방장 기본 속도 + (방장이 달릴 수 있고 참가자가 Shift를 누르면) 1
+        base = $game_player.instance_variable_get(:@move_speed) || 4
+        c.instance_variable_set(:@move_speed, base + (g.dash && act && host_can_dash? ? 1 : 0))
         c.update
         ensure_sprite(g, ss)
         update_label(g)
@@ -1099,7 +1169,7 @@ module RocketExtra
       h = 48 if h <= 0
       g.label.x = c.screen_x
       g.label.y = c.screen_y - h - 22
-      g.label.visible = !c.transparent
+      g.label.visible = !c.transparent && host_visible?
     end
 
     def parse_color(hex)

@@ -352,6 +352,7 @@ public class RocketRenderMKXP : IGameBridge, IExtraModeTarget, IDisposable
     public void SetExtraGuests(IEnumerable<(string id, string name, string color)> guests) => ExtraAgentCommands.Guests(_channel, guests);
     public void ExtraKey(string id, int vk, bool down) => ExtraAgentCommands.Key(_channel, id, vk, down);
     public void ExtraHeld(string id, IEnumerable<int> keys) => ExtraAgentCommands.Held(_channel, id, keys);
+    public void ExtraSummon() => ExtraAgentCommands.Summon(_channel);
 
     /// <summary>타일 인스펙터: 게임 해상도 기준 마우스 좌표 (null이면 해제)</summary>
     public void UpdateVirtualMouse(double? x, double? y)

@@ -61,6 +61,10 @@ public partial class MainWindow
                 OpenMultiChat();
                 return true;
 
+            case "MultiSummon":
+                SummonGuests();
+                return true;
+
             case "ToggleMenuBar":
                 ToggleMenuBar();
                 return true;
@@ -245,7 +249,7 @@ public partial class MainWindow
         (AutoMessageMenuItem, "ToggleAutoMessage"), (SkipMessageMenuItem, "ToggleSkipMessage"), (ShowMessageBarMenuItem, "ToggleMessageBar"),
         (EspOverlayMenuItem, "ToggleEspOverlay"), (TileInspectorMenuItem, "ToggleTileInspector"),
         (RestartMenuItem, "RestartGame"), (GameExitMenuItem, "ExitGame"),
-        (MultiChatItem, "MultiChat"), (MenuBarMenuItem, "ToggleMenuBar"),
+        (MultiChatItem, "MultiChat"), (MultiSummonItem, "MultiSummon"), (MenuBarMenuItem, "ToggleMenuBar"),
         (SpeedUpMenuItem, "SpeedUp"), (SpeedDownMenuItem, "SpeedDown"), (SpeedResetMenuItem, "SpeedReset"),
     ];
 

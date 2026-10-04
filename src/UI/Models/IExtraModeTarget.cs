@@ -17,6 +17,8 @@ public interface IExtraModeTarget
     void SetExtraGuests(IEnumerable<(string id, string name, string color)> guests);
     void ExtraKey(string id, int vk, bool down);
     void ExtraHeld(string id, IEnumerable<int> keys);
+    /// <summary>방장: 참가자 캐릭터를 모두 방장 자리로</summary>
+    void ExtraSummon();
 }
 
 /// <summary>루비 에이전트·EasyRPG 에이전트 파이프 명령 (xmode / xguests / xkey / xheld)</summary>
@@ -33,4 +35,5 @@ public static class ExtraAgentCommands
     public static void Guests(MkxpAgentChannel? ch, IEnumerable<(string id, string name, string color)> guests) => ch?.Send("xguests", GuestList(guests));
     public static void Key(MkxpAgentChannel? ch, string id, int vk, bool down) => ch?.Send("xkey", id, vk, down);
     public static void Held(MkxpAgentChannel? ch, string id, IEnumerable<int> keys) => ch?.Send("xheld", id, string.Join(",", keys));
+    public static void Summon(MkxpAgentChannel? ch) => ch?.Send("xsummon");
 }

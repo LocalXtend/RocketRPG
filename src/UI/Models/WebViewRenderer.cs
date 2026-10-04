@@ -524,6 +524,7 @@ public class WebViewRenderer : IGameBridge, IExtraModeTarget, IDisposable
 
     public void ExtraKey(string id, int vk, bool down) => PostCommand(new { type = "extra", op = "key", id, k = vk, d = down });
     public void ExtraHeld(string id, IEnumerable<int> keys) => PostCommand(new { type = "extra", op = "held", id, keys = keys.ToArray() });
+    public void ExtraSummon() => PostCommand(new { type = "extra", op = "summon" });
 
     void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {

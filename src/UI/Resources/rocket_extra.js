@@ -3,7 +3,11 @@
 //  - 참가자 캐릭터는 방장 화면(카메라) 밖으로 나갈 수 없습니다. 방장이 움직여 화면 밖으로 밀리면 방장 곁으로 옮깁니다.
 //  - 참가자도 앞의 이벤트에 말을 걸거나 밟아 이벤트를 시작할 수 있습니다 (이벤트 안의 '플레이어'는 방장 캐릭터).
 //  - 참가자 캐릭터는 게임 데이터($gameMap 등)에 넣지 않습니다. 저장 파일에 섞이지 않고, RocketRPG 없이 불러와도 문제가 없습니다.
-// 명령: chrome.webview 메시지 { type: 'extra', op: 'mode'|'guests'|'key'|'held', ... }
+//  - 방장이 움직일 수 없을 때(이벤트, 메시지, 이동 경로 강제, 탈것 승하차 등)는 참가자도 움직일 수 없습니다.
+//  - 방장 캐릭터가 숨겨져 있으면(타이틀 맵 등) 참가자 캐릭터와 이름표도 숨깁니다.
+//  - 달리기는 방장이 달릴 수 있을 때만 (맵의 달리기 금지, 게임이 막은 달리기 포함). 기본 속도는 방장 속도를 따릅니다.
+//  - 방장이 순간이동하면(다른 맵이든 같은 맵이든) 함께 옮겨집니다. 방장은 모두를 곁으로 부를 수 있습니다(summon).
+// 명령: chrome.webview 메시지 { type: 'extra', op: 'mode'|'guests'|'key'|'held'|'summon', ... }
 (function () {
     if (window.__rocketExtra) return;
     const ext = window.__rocketExtra = { on: false, guests: new Map(), installed: false, command: (m) => command(m) };
@@ -46,6 +50,9 @@
                 if (m.d && OK.has(Number(m.k)) && g.char) g.char.rrAction();
                 break;
             }
+            case 'summon':   // 방장: 모두 내 곁으로
+                ext.summon = true;
+                break;
             case 'held': {
                 const g = ext.guests.get(String(m.id));
                 if (!g) return;
@@ -97,17 +104,45 @@
             return sx >= 0 && sy >= 0 && sx <= $gameMap.screenTileX() - 1 && sy <= $gameMap.screenTileY() - 1;
         };
 
+        // 방장이 지금 움직일 수 있을 때만 (게임의 판정 canMove: 이벤트·메시지·이동 경로 강제·탈것 승하차, 플러그인이 바꾼 것 포함)
         Game_RocketGuest.prototype.rrCanAct = function () {
-            return ext.on && SceneManager._scene instanceof Scene_Map && !$gameMap.isEventRunning() && !$gameMessage.isBusy() &&
-                !$gamePlayer.isTransferring() && !(SceneManager.isSceneChanging && SceneManager.isSceneChanging());
+            if (!ext.on || !(SceneManager._scene instanceof Scene_Map) || $gameMap.isEventRunning() || $gameMessage.isBusy()) return false;
+            if ($gamePlayer.isTransferring() || (SceneManager.isSceneChanging && SceneManager.isSceneChanging())) return false;
+            try { if ($gamePlayer.canMove && !$gamePlayer.canMove()) return false; } catch (e) { return false; }
+            return hostVisible();
         };
+
+        // 방장 캐릭터가 보이는지 (그림 없음·투명이면 타이틀 맵이나 연출 중: 참가자도 숨김)
+        function hostVisible() {
+            return !!$gamePlayer && !$gamePlayer.isTransparent() && $gamePlayer.characterName() !== '';
+        }
+
+        // 방장이 지금 달릴 수 있는지: 맵의 달리기 금지·탈것, 그리고 게임이 막은 달리기(isDashButtonPressed를 바꾼 플러그인)를
+        // Shift를 누른 것처럼 물어봐서 확인합니다. 0.5초마다 한 번만.
+        let dashAt = -1e9, dashOk = false;
+        function hostCanDash() {
+            const now = performance.now();
+            if (now - dashAt < 500) return dashOk;
+            dashAt = now;
+            dashOk = false;
+            if ($gameMap.isDashDisabled && $gameMap.isDashDisabled()) return dashOk;
+            if ($gamePlayer.isInVehicle && $gamePlayer.isInVehicle()) return dashOk;
+            const press = Input.isPressed, always = ConfigManager.alwaysDash;
+            try {
+                Input.isPressed = function (k) { return k === 'shift' ? true : press.apply(this, arguments); };
+                ConfigManager.alwaysDash = false;
+                dashOk = !!$gamePlayer.isDashButtonPressed();
+            } catch (e) { dashOk = false; }
+            finally { Input.isPressed = press; ConfigManager.alwaysDash = always; }
+            return dashOk;
+        }
 
         Game_RocketGuest.prototype.update = function () {
             const g = this._rrGuest;
             // 모습은 방장 캐릭터와 같게 (방장이 바뀌면 따라 바뀜)
             if (this.characterName() !== $gamePlayer.characterName() || this.characterIndex() !== $gamePlayer.characterIndex())
                 this.setImage($gamePlayer.characterName(), $gamePlayer.characterIndex());
-            this.setTransparent($gamePlayer.isTransparent());
+            this.setTransparent(!hostVisible());
             // 맵이 바뀌면 방장 곁으로
             if (this._rrMapId !== $gameMap.mapId()) { this._rrMapId = $gameMap.mapId(); this.locate($gamePlayer.x, $gamePlayer.y); this.setDirection($gamePlayer.direction()); }
             if (performance.now() - g.at > LEASE_MS) { g.order = []; g.dash = false; }
@@ -118,7 +153,8 @@
                 else if (this.rrCanAct() && g.order.length) this.rrMove(g.order[g.order.length - 1]);
             }
             this._rrWasMoving = this.isMoving();
-            this.setMoveSpeed(g.dash && this.rrCanAct() ? 5 : 4);
+            // 방장 기본 속도 + (방장이 달릴 수 있고 참가자가 Shift를 누르면) 1
+            this.setMoveSpeed($gamePlayer.moveSpeed() + (g.dash && this.rrCanAct() && hostCanDash() ? 1 : 0));
             Game_Character.prototype.update.call(this);
         };
 
@@ -175,13 +211,37 @@
             if (!(scene instanceof Scene_Map) || !scene._spriteset) return;
             const started = scene.isStarted ? scene.isStarted() : SceneManager._sceneStarted;
             if (ext.on && started && window.$dataMap && $gameMap && $gameMap.mapId() > 0) {
+                const jump = hostTeleported() || ext.summon;
+                ext.summon = false;
                 for (const g of ext.guests.values()) {
                     if (!g.char) g.char = new Game_RocketGuest(g);
+                    if (jump) g.char.rrToHost();
                     g.char.update();
                 }
             }
             rrSyncSprites(scene._spriteset);
         }
+        // 방장이 순간이동했는지: 다른 맵이거나, 점프가 아닌데 한 번에 2칸 넘게 움직임 (같은 맵 안의 장소 이동)
+        let last = null;
+        function hostTeleported() {
+            const p = $gamePlayer, now = { map: $gameMap.mapId(), x: p.x, y: p.y };
+            const prev = last;
+            last = now;
+            if (!prev) return false;
+            if (prev.map !== now.map) return true;
+            if (p.isJumping && p.isJumping()) return false;
+            const dx = $gameMap.deltaX ? Math.abs($gameMap.deltaX(now.x, prev.x)) : Math.abs(now.x - prev.x);
+            const dy = $gameMap.deltaY ? Math.abs($gameMap.deltaY(now.y, prev.y)) : Math.abs(now.y - prev.y);
+            return dx + dy > 1;
+        }
+
+        // 방장 자리로 (순간이동을 따라가거나 방장이 불렀을 때)
+        Game_RocketGuest.prototype.rrToHost = function () {
+            this.locate($gamePlayer.x, $gamePlayer.y);
+            this.setDirection($gamePlayer.direction());
+            this._rrMapId = $gameMap.mapId();
+        };
+
         function chainHas(fn) {
             for (let i = 0; fn && i < 40; i++) { if (fn.__rrOwner === 'extra') return true; fn = fn.__rrWraps; }
             return false;
@@ -202,6 +262,7 @@
         hookUpdateScene();
         setInterval(hookUpdateScene, 500);
         ext.debug = () => ({ hooked: chainHas(SceneManager.updateScene) });
+        ext.hostCanDash = hostCanDash;
 
         function rrSyncSprites(set) {
             if (!set._tilemap || !set._characterSprites) return;
@@ -243,7 +304,7 @@
                 }
                 const h = s.bitmap && s.bitmap.height && s.patternHeight ? s.patternHeight() : 48;   // 그림을 아직 못 읽었으면 기본 높이
                 label.y = -(h > 0 ? h : 48) - 2;
-                label.visible = !g.char.isTransparent();
+                label.visible = !g.char.isTransparent() && hostVisible();
             }
         }
     }

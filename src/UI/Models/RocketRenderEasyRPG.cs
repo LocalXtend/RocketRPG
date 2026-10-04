@@ -205,6 +205,7 @@ public class RocketRenderEasyRPG : IGameBridge, IExtraModeTarget, IDisposable
     public void SetExtraGuests(IEnumerable<(string id, string name, string color)> guests) => ExtraAgentCommands.Guests(_channel, guests);
     public void ExtraKey(string id, int vk, bool down) => ExtraAgentCommands.Key(_channel, id, vk, down);
     public void ExtraHeld(string id, IEnumerable<int> keys) => ExtraAgentCommands.Held(_channel, id, keys);
+    public void ExtraSummon() => ExtraAgentCommands.Summon(_channel);
     /// <summary>멀티: 방송 화면에도 ESP를 그림 (참가자가 도구 권한이 있을 때)</summary>
     public void SetEspShare(bool on) => _channel?.Send("espshare", on);
     /// <summary>글꼴은 게임을 다시 시작할 때 적용합니다 (MainWindow가 재시작을 묻습니다).</summary>

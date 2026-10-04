@@ -53,6 +53,7 @@ public static class HotkeyManager
         new HotkeyItem { Id = "Screenshot", Category = CatConvenience, Name = "스크린샷 찍기", Description = "지금 게임 화면을 찍어 스크린샷 보관함에 저장", DefaultGesture = "Ctrl + Shift + A", CurrentGesture = "Ctrl + Shift + A" },
 
         new HotkeyItem { Id = "MultiChat", Category = CatGeneral, Name = "채팅하기", Description = "멀티 방에서 채팅 입력 칸 열기 (글은 게임 화면 위로 흘러갑니다)", DefaultGesture = "Ctrl + T", CurrentGesture = "Ctrl + T" },
+        new HotkeyItem { Id = "MultiSummon", Category = CatGeneral, Name = "참가자 캐릭터 모두 부르기", Description = "멀티 엑스트라 모드에서 참가자 캐릭터를 모두 내 곁으로 부르기 (방장)", DefaultGesture = "Ctrl + G", CurrentGesture = "Ctrl + G" },
         new HotkeyItem { Id = "ToggleMenuBar", Category = CatGeneral, Name = "메뉴 숨기기/보이기", Description = "창 위쪽 메뉴 줄을 숨기거나 다시 보이기 (숨긴 동안에도 동작)", DefaultGesture = "Alt + H", CurrentGesture = "Alt + H" },
     };
 
