@@ -291,8 +291,8 @@ public partial class Program
     {
         Console.WriteLine("--- Testing HotkeyManager ---");
 
-        Assert("Default hotkeys count is 23", HotkeyManager.DefaultHotkeys.Count == 23, $"Count={HotkeyManager.DefaultHotkeys.Count}");
-        Assert("Active hotkeys count is 23", HotkeyManager.ActiveHotkeys.Count == 23, $"Count={HotkeyManager.ActiveHotkeys.Count}");
+        Assert("Default hotkeys count is 24", HotkeyManager.DefaultHotkeys.Count == 24, $"Count={HotkeyManager.DefaultHotkeys.Count}");
+        Assert("Active hotkeys count is 24", HotkeyManager.ActiveHotkeys.Count == 24, $"Count={HotkeyManager.ActiveHotkeys.Count}");
         Assert("Menu toggle defaults to Alt+H", HotkeyManager.GestureOf("ToggleMenuBar") == "Alt + H");
         Assert("Menu text drops spaces", HotkeyManager.MenuText("Ctrl + Shift + S") == "Ctrl+Shift+S" && HotkeyManager.MenuText("") == "");
         Assert("Alt+Tab is refused", HotkeyManager.SystemConflict("Alt + Tab") != null && HotkeyManager.SystemConflict("Alt + F4") != null);
@@ -336,7 +336,9 @@ public partial class Program
 
         // Dictionary Save & Load roundtrip
         var dict = HotkeyManager.SaveToDictionary();
-        Assert("SaveToDictionary returns 23 items", dict.Count == 23);
+        Assert("SaveToDictionary returns 24 items", dict.Count == 24);
+        Assert("Summon hotkey defaults to Ctrl + G", HotkeyManager.DefaultHotkeys.Any(h => h.Id == "MultiSummon" && h.DefaultGesture == "Ctrl + G"));
+        Assert("Default hotkeys do not share a key", HotkeyManager.DefaultHotkeys.GroupBy(h => h.DefaultGesture).All(g => g.Count() == 1));
         dict["QuickSave"] = "F6";
         HotkeyManager.Load(dict);
         Assert("Custom binding QuickSave=F6 applied", HotkeyManager.MatchWebKey("F6", false, false, false) == "QuickSave");
