@@ -697,7 +697,7 @@ public partial class MainWindow : Window
         StopNativeSession("게임이 종료되었습니다.");
     }
 
-    void OnExit(object s, RoutedEventArgs e) { _ctl.SavePerGameSettings(); Close(); }
+    void OnExit(object s, RoutedEventArgs e) { _ctl.SaveSettings(); Close(); }
 
     void OnGameLibrary(object sender, RoutedEventArgs e)
     {

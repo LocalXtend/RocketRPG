@@ -54,16 +54,8 @@ public class MainController : IDisposable
     /// <summary>볼륨 값을 저장합니다 (실제 적용은 실행 중인 엔진의 SetVolume).</summary>
     public void SetVolume(int pct) { Settings.Volume = pct; _settingsSvc.Save(Settings); }
 
+    /// <summary>전역 설정을 저장합니다 (실패해도 예외를 내지 않음). 게임별 설정은 GameSettingsService(rocket_config.json)가 따로 씁니다.</summary>
     public void SaveSettings() => _settingsSvc.Save(Settings);
-
-    /// <summary>
-    /// 전역 설정만 저장합니다. 게임별 설정은 GameSettingsService(rocket_config.json) 한 파일만 씁니다
-    /// (예전에는 아무도 읽지 않는 RocketRPGSettings.json도 게임 폴더에 따로 썼음).
-    /// </summary>
-    public void SavePerGameSettings()
-    {
-        try { _settingsSvc.Save(Settings); } catch { }
-    }
 
     public void Dispose()
     {

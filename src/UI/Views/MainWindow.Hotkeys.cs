@@ -232,7 +232,7 @@ public partial class MainWindow
         var wnd = new HotkeySettingsWindow(dict =>
         {
             _ctl.Settings.Hotkeys = dict;
-            _ctl.SavePerGameSettings();
+            _ctl.SaveSettings();
             RefreshMenuGestures();
         }) { Owner = this };
         wnd.ShowDialog();

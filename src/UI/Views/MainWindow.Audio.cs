@@ -213,7 +213,7 @@ public partial class MainWindow
 
     void SavePerGame()
     {
-        _ctl.SavePerGameSettings();
+        _ctl.SaveSettings();
         if (!string.IsNullOrEmpty(_currentDir))
         {
             var cfg = new GameConfig
