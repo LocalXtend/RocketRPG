@@ -27,6 +27,7 @@
     <EmbeddedResource Include="Resources\nw_shim.js" LogicalName="RocketRPG.Resources.nw_shim.js" />
     <EmbeddedResource Include="Resources\mv_autotest.js" LogicalName="RocketRPG.Resources.mv_autotest.js" />
     <EmbeddedResource Include="Resources\multi.html" LogicalName="RocketRPG.Resources.multi.html" />
+    <EmbeddedResource Include="Resources\rocket_mv_bridge.js" LogicalName="RocketRPG.Resources.rocket_mv_bridge.js" />
     <EmbeddedResource Include="Resources\rocket_multi_frames.js" LogicalName="RocketRPG.Resources.rocket_multi_frames.js" />
     <EmbeddedResource Include="Resources\rocket_extra.js" LogicalName="RocketRPG.Resources.rocket_extra.js" />
     <EmbeddedResource Include="Resources\default_assets.json" LogicalName="RocketRPG.Resources.default_assets.json" />
