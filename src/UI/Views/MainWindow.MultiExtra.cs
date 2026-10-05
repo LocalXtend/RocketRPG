@@ -116,7 +116,7 @@ public partial class MainWindow
             bool extra = data?["extra"]?.GetValue<bool>() == true;
             if (extra == _guestExtra) return;
             _guestExtra = extra;
-            if (_controlSent) ShowHudMessage(extra ? "엑스트라 모드: 내 캐릭터를 방향키로 움직이고 Z·Enter로 말을 겁니다. 방장 화면 밖으로는 못 갑니다."
+            if (_controlSent) ShowHudMessage(extra ? "엑스트라 모드: 방장 게임과 같은 키로 내 캐릭터를 움직이고, 결정 키로 말을 걸거나 대사를 넘깁니다. 방장 화면 밖으로는 못 갑니다."
                                                    : "컨트롤 모드: 방장 캐릭터를 함께 조작합니다.", 5000);
         };
     }

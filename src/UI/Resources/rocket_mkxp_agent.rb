@@ -192,6 +192,7 @@ module RocketBridge
     def tick
       @frame += 1
       RocketInputHook.ensure if @frame % 60 == 1
+      guest_tick
       connect if @pipe.nil?
       return unless @pipe
       if @frame == 2
@@ -447,10 +448,10 @@ module RocketBridge
     # 진짜 키처럼 "누른 프레임" 동안에는 모든 호출에 true를 돌려줍니다. 한 번만 true를 주면, 같은 프레임에
     # 먼저 C를 묻는 다른 스크립트(HUD, 단축키 등)가 그 입력을 가져가 대화창이 넘어가지 않았습니다.
     def want_confirm?(key)
-      return false unless @auto || @skip || @force_advance
       return false unless key == Input::C || key == :C
-      @c_polls = (@c_polls || 0) + 1
       return true if @press_frame == @frame
+      return false unless @auto || @skip || @force_advance
+      @c_polls = (@c_polls || 0) + 1
       return false unless @msg_key
       return false if choice_active?
       if @force_advance
@@ -479,6 +480,42 @@ module RocketBridge
     def press_now
       @press_frame = @frame
       true
+    end
+
+    # 멀티 엑스트라 모드: 참가자가 대화 중에 결정 키를 누름 → 방장이 누른 것처럼 대사를 넘김 (선택지·숫자 입력은 넘기지 않음).
+    # 진짜 키처럼 한 프레임 동안 결정 키가 눌린 것으로 합니다 (그 프레임에 묻는 모두에게 true). 대화창이 입력 대기를 시작한 직후에는
+    # 잠깐 쉬므로(VX/Ace input_pause의 wait 10) 그동안 누른 것은 쉬는 시간이 끝날 때 넣습니다. 그 사이 매 프레임 결정 키를 묻는
+    # 다른 스크립트가 가져가 대사가 넘어가지 않았습니다. 0.5초 안에 넣지 못하면 버립니다.
+    GUEST_OK_SEC = 0.5
+
+    def guest_confirm
+      @guest_ok_at = now_s
+    end
+
+    # 매 프레임 (tick, 파이프와 상관없이)
+    def guest_tick
+      w = @guest_ok_at || RocketExtra.on ? message_window : nil
+      @pause_run = w && w.pause ? (@pause_run || 0) + 1 : 0
+      return unless @guest_ok_at
+      if now_s - @guest_ok_at > GUEST_OK_SEC || choice_active?
+        @guest_ok_at = nil
+        return
+      end
+      # VX/Ace: 글이 나오는 중이면 바로 (빨리 보기, 방장과 같음), 입력 대기는 쉬는 시간이 지난 뒤에.
+      # XP: 글을 쓰는 동안에는 결정 키를 보지 않으므로 입력 대기가 되면. 대화창을 모르는 게임은 바로.
+      if @rgss == 1
+        return if w && @pause_run < 1
+      elsif @pause_run > 0 && @pause_run < 11
+        return
+      end
+      @guest_ok_at = nil
+      @press_frame = @frame
+    rescue StandardError
+      @guest_ok_at = nil
+    end
+
+    def now_s
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
 
     # ---------------- ESP / tile inspector ----------------
@@ -797,7 +834,9 @@ rescue StandardError, ScriptError => e
 end
 # ---------------- 멀티 엑스트라 모드 (XP/VX/VX Ace) ----------------
 # 참가자마다 방장 캐릭터와 같은 모습의 캐릭터를 맵에 둡니다 (MV/MZ의 rocket_extra.js와 같은 규칙).
-#  - 방향키/숫자판 2468로 움직이고(Shift 달리기, VX/Ace), Z/Enter/Space로 앞의 이벤트에 말을 겁니다. 닿거나 밟아서 시작하는 이벤트도 됩니다.
+#  - 키는 방장 게임(mkxp-z 기본 키)과 같습니다: 방향키로 움직이고(Shift 달리기, VX/Ace), 결정 키(XP: Enter/Space/C, VX/Ace: Enter/Space/Z)로
+#    앞의 이벤트에 말을 겁니다. 닿거나 밟아서 시작하는 이벤트도 됩니다.
+#  - 대화가 떠 있으면 결정 키로 방장처럼 대사를 넘깁니다 (선택지는 방장이 고름).
 #  - 방장 화면(카메라) 밖으로는 못 가고, 방장이 움직여 화면 밖으로 밀리면 방장 자리로 옮깁니다.
 #  - 캐릭터는 게임 데이터($game_map 등)에 넣지 않아 저장 파일에 섞이지 않습니다. 그림은 맵 그림(Spriteset_Map)에 끼웁니다.
 #  - 방장이 움직일 수 없을 때(이벤트, 메시지, 이동 경로 강제 등)는 참가자도 못 움직이고, 방장 캐릭터가 숨겨져 있으면(타이틀 맵 등) 숨깁니다.
@@ -805,9 +844,10 @@ end
 #  - 방장이 순간이동하면(같은 맵 안도) 함께 옮겨지고, 방장은 모두를 곁으로 부를 수 있습니다 (명령 xsummon).
 # 명령: xmode 1/0, xguests (id \x01 이름 \x01 #색 를 \x02로 이음), xkey id vk 1/0, xheld id vk,vk,...
 module RocketExtra
-  DIR = { 0x25 => 4, 0x26 => 8, 0x27 => 6, 0x28 => 2, 0x62 => 2, 0x64 => 4, 0x66 => 6, 0x68 => 8 }.freeze
-  OK = [0x0D, 0x20, 0x5A].freeze
-  DASH = [0x10, 0xA0, 0xA1].freeze
+  # 윈도우 가상 키 → 버튼. mkxp-z 기본 키 배치(keybindings.cpp)와 같게: 방향키, C(결정) = Enter/Space + XP는 C·VX/Ace는 Z,
+  # A(VX/Ace 달리기) = Shift (+ XP는 Z). XP에서 Z는 결정 키가 아니라 A 버튼입니다.
+  DIR = { 0x25 => 4, 0x26 => 8, 0x27 => 6, 0x28 => 2 }.freeze
+  SHIFTS = [0x10, 0xA0, 0xA1].freeze
   LEASE = 1.5
   Guest = Struct.new(:id, :name, :color, :order, :dash, :at, :char, :sprite, :spriteset, :label, :label_key, :map_id, :was_moving, :sprite_failed)
   @on = false
@@ -822,6 +862,14 @@ module RocketExtra
 
     def rgss
       RocketBridge.rgss
+    end
+
+    def ok_key?(vk)
+      vk == 0x0D || vk == 0x20 || vk == (rgss == 1 ? 0x43 : 0x5A)
+    end
+
+    def dash_key?(vk)
+      SHIFTS.include?(vk) || (rgss == 1 && vk == 0x5A)
     end
 
     def mode(on)
@@ -862,8 +910,11 @@ module RocketExtra
         g.order.delete(d)
         g.order.push(d) if down
       end
-      g.dash = down if DASH.include?(vk)
-      action(g.char) if down && OK.include?(vk) && g.char
+      g.dash = down if dash_key?(vk)
+      return unless down && ok_key?(vk)
+      if message_busy? then RocketBridge.guest_confirm   # 대화 중: 방장처럼 대사 넘김
+      elsif g.char then action(g.char)
+      end
     end
 
     def held(id, list)
@@ -872,7 +923,7 @@ module RocketExtra
       dirs = list.map { |k| DIR[k] }.compact
       g.order.select! { |d| dirs.include?(d) }
       dirs.each { |d| g.order.push(d) unless g.order.include?(d) }
-      g.dash = list.any? { |k| DASH.include?(k) }
+      g.dash = list.any? { |k| dash_key?(k) }
     end
 
     # ---- 참가자 캐릭터 ----

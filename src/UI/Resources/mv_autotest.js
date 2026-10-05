@@ -246,6 +246,27 @@
       c.rrAction();
       log('EXTRA talk ' + (at.exTarget._starting || $gameMap.isEventRunning() ? 'ok' : 'FAIL') + ' event ' + at.exTarget.eventId() + ' (' + before + ')');
     }
+    // 1.1.4: 참가자 키는 게임의 Input.keyMapper를 따름
+    if (et === 284) {
+      var k = ext.keys, km = Input.keyMapper, okVk = Object.keys(km).filter(function (v) { return km[v] === 'ok'; }).map(Number);
+      var keysOk = k && okVk.length > 0 && okVk.every(k.isOk) && !k.isOk(0x25) && k.dirOf(0x28) === 2 && (km[90] !== 'ok' || k.isOk(0x5A));
+      log('EXTRA keys follow the game key map -> ' + (keysOk ? 'ok' : 'FAIL') + ' ok=' + okVk.join(','));
+    }
+    // 1.1.4: 대화가 입력을 기다리면(pause) 참가자 결정 키로 넘어감 (시험의 확인 키는 누르지 않음)
+    if (et === 285 && at.exTarget && !at.exAdvDone) {
+      var mw = scene() && scene()._messageWindow;
+      var text = $gameMessage.hasText() ? $gameMessage.allText() : '';
+      var waiting = !!(mw && mw.pause && text && !$gameMessage.isChoice() && !$gameMessage.isNumberInput());
+      if (at.exAdvN === undefined) {
+        if (waiting) {
+          at.exAdvText = text; at.exAdvN = 0;
+          ext.command({ op: 'key', id: 't1', k: 0x0D, d: true });
+          ext.command({ op: 'key', id: 't1', k: 0x0D, d: false });
+        } else if ((at.exWait3 = (at.exWait3 || 0) + 1) >= 600) { log('EXTRA guest advance skipped (no message waiting)'); at.exAdvDone = true; }
+      } else if (!waiting || text !== at.exAdvText) { log('EXTRA guest advance -> ok (' + at.exAdvN + ' frames)'); at.exAdvDone = true; }
+      else if (++at.exAdvN > 40) { log('EXTRA guest advance -> FAIL message still waiting (win ' + (mw && mw.constructor.name) + ')'); at.exAdvDone = true; }
+      if (!at.exAdvDone) { at.et = 285; return; }
+    }
     if (et === 300) {
       var json = '';
       try { json = JsonEx.stringify(DataManager.makeSaveContents()); } catch (e) { json = 'error ' + e; }

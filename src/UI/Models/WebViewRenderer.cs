@@ -911,9 +911,13 @@ public class WebViewRenderer : IGameBridge, IExtraModeTarget, IDisposable
         autoSpeed: 1.0,
         skipMessage: false,
         msgBusy: false,
-        msgWaitStart: 0
+        msgWaitStart: 0,
+        guestOkAt: 0,            // 멀티 엑스트라 모드: 참가자가 대화 중에 결정 키를 누른 때 (rocket_extra.js)
+        guestOkHitAt: 0
     };
     window.__rocketBridge = bridge;
+    // 참가자 결정 키: 방장이 누른 것처럼 대사를 한 번 넘김 (선택지·숫자 입력은 넘기지 않음)
+    bridge.guestConfirm = function() { bridge.guestOkAt = performance.now(); bridge.guestOkHitAt = 0; };
 
     // 1. Host -> Web 메시징
     if (window.chrome && window.chrome.webview) {
@@ -1326,8 +1330,9 @@ public class WebViewRenderer : IGameBridge, IExtraModeTarget, IDisposable
         }
         if (typeof wm.isTriggered === 'function') {
             const origTrig = wm.isTriggered;
-            wm.isTriggered = function() {
+            wm.isTriggered = function rrMsgTriggered() {
                 if (bridge.forceAdvance) { bridge.forceAdvance = false; return true; }
+                if (guestOkPending()) { bridge.guestOkAt = 0; return true; }
                 if (bridge.skipMessage) return true;
                 if (bridge.autoMessage && this.pause && bridge.msgWaitStart &&
                     performance.now() - bridge.msgWaitStart >= autoWaitMs()) {
@@ -1337,6 +1342,7 @@ public class WebViewRenderer : IGameBridge, IExtraModeTarget, IDisposable
                 }
                 return origTrig.call(this);
             };
+            wm.isTriggered.__rrMsg = true;
         }
         if (typeof wm.updateShowFast === 'function') {
             const origFast = wm.updateShowFast;
@@ -1364,10 +1370,36 @@ public class WebViewRenderer : IGameBridge, IExtraModeTarget, IDisposable
         w.__rrWraps = cur;
         obj[name] = w;
     }
-    function msgWantsOk() {
+    // 일반 대사가 떠 있는지 (선택지/숫자 입력/아이템 선택이 아님)
+    function msgPlain() {
         if (typeof $gameMessage === 'undefined' || !$gameMessage || !$gameMessage.hasText || !$gameMessage.hasText()) return false;
-        if (($gameMessage.isChoice && $gameMessage.isChoice()) || ($gameMessage.isNumberInput && $gameMessage.isNumberInput()) ||
-            ($gameMessage.isItemChoice && $gameMessage.isItemChoice())) return false;
+        return !(($gameMessage.isChoice && $gameMessage.isChoice()) || ($gameMessage.isNumberInput && $gameMessage.isNumberInput()) ||
+            ($gameMessage.isItemChoice && $gameMessage.isItemChoice()));
+    }
+    // 참가자 결정 키 (엑스트라 모드). 대화창이 묻지 않는 사이(입력 대기 전 잠깐 쉬는 startWait 10 등)에 누른 것은
+    // 0.5초만 기억합니다 (늦게 다음 대사까지 넘기지 않게).
+    function guestOkPending() {
+        if (!bridge.guestOkAt) return false;
+        if (performance.now() - bridge.guestOkAt > 500 || !msgPlain()) { bridge.guestOkAt = 0; return false; }
+        return true;
+    }
+    // 메시지 창을 바꿔 둔 게임: 입력 단계에서 진짜 키처럼 한 프레임 동안만 'ok'를 눌린 것으로.
+    // 표준 대화창(우리 isTriggered를 쓰는 창)이면 그 창이 직접 가져갑니다. 여기서도 주면, 창이 쉬는 동안 매 프레임 'ok'를 묻는
+    // 다른 플러그인이 가져가 대사가 넘어가지 않습니다.
+    function guestOkInput() {
+        if (!guestOkPending()) return false;
+        const s = (typeof SceneManager !== 'undefined') ? SceneManager._scene : null;
+        const w = s && s._messageWindow;
+        if (w && w.isTriggered && w.isTriggered.__rrMsg) return false;
+        const now = performance.now();
+        if (!bridge.guestOkHitAt) bridge.guestOkHitAt = now;
+        if (now - bridge.guestOkHitAt < 8) return true;
+        bridge.guestOkAt = 0;
+        return false;
+    }
+    function msgWantsOk() {
+        if (guestOkInput()) return true;
+        if (!msgPlain()) return false;
         if (bridge.skipMessage) return true;
         if (!bridge.autoMessage) return false;
         const since = Math.max(bridge.msgShownAt || 0, bridge.lastAutoOk || 0);
@@ -1378,7 +1410,7 @@ public class WebViewRenderer : IGameBridge, IExtraModeTarget, IDisposable
     function hookInputAuto() {
         if (typeof Input === 'undefined' || !Input.isTriggered) return false;
         rrWrap(Input, 'isTriggered', 'bridge', function(t) { return function(k) { return (k === 'ok' && msgWantsOk()) || t.apply(this, arguments); }; });
-        rrWrap(Input, 'isRepeated', 'bridge', function(r) { return function(k) { return (k === 'ok' && bridge.skipMessage && msgWantsOk()) || r.apply(this, arguments); }; });
+        rrWrap(Input, 'isRepeated', 'bridge', function(r) { return function(k) { return (k === 'ok' && ((bridge.skipMessage && msgWantsOk()) || guestOkInput())) || r.apply(this, arguments); }; });
         return true;
     }
     function advanceMessage() {

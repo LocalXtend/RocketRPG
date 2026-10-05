@@ -504,6 +504,43 @@ module RocketAutotest
         ok = RocketExtra.action(c)
         log("EXTRA talk #{ok ? 'ok' : 'FAIL'} event #{@ex_target.id} at #{@ex_target.x},#{@ex_target.y}")
       end
+      # 1.1.4: 참가자 키는 mkxp-z 기본 키 배치를 따름 (XP: C가 결정이고 Z는 A 버튼, VX/Ace: Z가 결정)
+      if et == 214
+        xp = RocketBridge.rgss == 1
+        ok = RocketExtra.ok_key?(0x0D) && RocketExtra.ok_key?(0x20) && RocketExtra.ok_key?(xp ? 0x43 : 0x5A) &&
+             !RocketExtra.ok_key?(xp ? 0x5A : 0x43)
+        log("EXTRA keys follow the mkxp-z mapping -> #{ok ? 'ok' : 'FAIL'}")
+      end
+      # 1.1.4: 대화가 입력을 기다리면(pause) 참가자 결정 키로 넘어감 (시험의 확인 키는 누르지 않음).
+      # 파이프가 없어 에이전트가 대화를 추적하지 않으므로 여기서 부릅니다.
+      if et == 215 && @ex_target && !@ex_adv_done
+        RocketBridge.send(:track_message)
+        mw = RocketBridge.send(:message_window)
+        waiting = RocketExtra.message_busy? && mw && mw.pause ? true : false   # 글을 다 쓰고 입력을 기다림
+        key = RocketBridge.instance_variable_get(:@msg_key)
+        if @ex_adv_n.nil?
+          if waiting
+            @ex_adv_key = key
+            @ex_adv_n = 0
+            RocketExtra.key('t1', 0x0D, true)
+            RocketExtra.key('t1', 0x0D, false)
+          elsif (@ex_wait3 = (@ex_wait3 || 0) + 1) >= 600
+            log('EXTRA guest advance skipped (no message waiting)')
+            @ex_adv_done = true
+          end
+        elsif !waiting || key != @ex_adv_key
+          log("EXTRA guest advance -> ok (#{@ex_adv_n} frames)")
+          @ex_adv_done = true
+        elsif (@ex_adv_n += 1) > 30
+          w = RocketBridge.send(:message_window)
+          log("EXTRA guest advance -> FAIL message still waiting (win=#{w.class} c_polls=#{RocketBridge.instance_variable_get(:@c_polls).inspect} "               "trigger=#{Input.method(:trigger?).owner rescue '?'} choice=#{RocketBridge.send(:choice_active?)})")
+          @ex_adv_done = true
+        end
+        unless @ex_adv_done
+          @et = 214   # 다음 프레임도 이 단계
+          return
+        end
+      end
       if et == 230 && !@ex_base_save
         log('EXTRA save not checked (game data cannot be dumped even without extra mode)')
       elsif et == 230

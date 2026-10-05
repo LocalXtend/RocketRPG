@@ -1,5 +1,7 @@
 // RocketRPG 멀티 엑스트라 모드 (RPG Maker MV/MZ): 참가자마다 방장 캐릭터와 같은 모습의 캐릭터를 하나씩 맵에 둡니다.
-//  - 참가자 키(방향키/숫자판 2468, Shift 달리기, Z/Enter/Space 말 걸기)는 방장 RocketRPG가 이 페이지로 넘겨 줍니다.
+//  - 참가자 키는 방장 RocketRPG가 이 페이지로 넘겨 줍니다. 키 배치는 방장 게임과 같습니다 (게임의 Input.keyMapper:
+//    방향 = 움직이기, 'shift' = 달리기, 'ok' = 말 걸기. 플러그인이 바꾼 키 배치도 따라감).
+//  - 대화가 떠 있으면 'ok' 키로 방장처럼 대사를 넘깁니다 (선택지는 방장이 고름, RocketRPG 브릿지의 guestConfirm).
 //  - 참가자 캐릭터는 방장 화면(카메라) 밖으로 나갈 수 없습니다. 방장이 움직여 화면 밖으로 밀리면 방장 곁으로 옮깁니다.
 //  - 참가자도 앞의 이벤트에 말을 걸거나 밟아 이벤트를 시작할 수 있습니다 (이벤트 안의 '플레이어'는 방장 캐릭터).
 //  - 참가자 캐릭터는 게임 데이터($gameMap 등)에 넣지 않습니다. 저장 파일에 섞이지 않고, RocketRPG 없이 불러와도 문제가 없습니다.
@@ -13,10 +15,18 @@
     const ext = window.__rocketExtra = { on: false, guests: new Map(), installed: false, command: (m) => command(m) };
     const LEASE_MS = 1500;   // 참가자 키 소식이 이만큼 없으면 키를 모두 뗀 것으로
 
-    // 윈도우 가상 키 → 방향(2 아래, 4 왼쪽, 6 오른쪽, 8 위) / 확인 / 달리기
-    const DIR = { 0x25: 4, 0x26: 8, 0x27: 6, 0x28: 2, 0x62: 2, 0x64: 4, 0x66: 6, 0x68: 8 };
-    const OK = new Set([0x0D, 0x20, 0x5A]);
-    const DASH = new Set([0x10, 0xA0, 0xA1]);
+    // 윈도우 가상 키 → 게임 버튼 이름: 게임의 Input.keyMapper (없으면 MV/MZ 기본 배치)
+    const DEFAULT_KEYS = { 13: 'ok', 16: 'shift', 32: 'ok', 37: 'left', 38: 'up', 39: 'right', 40: 'down', 90: 'ok', 98: 'down', 100: 'left', 102: 'right', 104: 'up' };
+    const DIR_OF = { down: 2, left: 4, right: 6, up: 8 };
+    function button(vk) {
+        if (vk === 0xA0 || vk === 0xA1) vk = 0x10;
+        const m = (typeof Input !== 'undefined' && Input.keyMapper) ? Input.keyMapper : DEFAULT_KEYS;
+        return m[vk];
+    }
+    const dirOf = vk => DIR_OF[button(vk)];
+    const isOk = vk => button(vk) === 'ok';
+    const isDash = vk => button(vk) === 'shift';
+    ext.keys = { dirOf, isOk, isDash };   // 자동 시험용
 
     if (window.chrome && window.chrome.webview) {
         window.chrome.webview.addEventListener('message', function (event) {
@@ -46,8 +56,13 @@
                 const g = ext.guests.get(String(m.id));
                 if (!g) return;
                 g.at = performance.now();
-                setKey(g, Number(m.k), !!m.d);
-                if (m.d && OK.has(Number(m.k)) && g.char) g.char.rrAction();
+                const vk = Number(m.k);
+                setKey(g, vk, !!m.d);
+                if (!m.d || !isOk(vk)) break;
+                // 대화 중: 방장처럼 대사 넘김 / 아니면 앞의 이벤트에 말 걸기
+                if (typeof $gameMessage !== 'undefined' && $gameMessage && $gameMessage.isBusy()) {
+                    if (window.__rocketBridge && window.__rocketBridge.guestConfirm) window.__rocketBridge.guestConfirm();
+                } else if (g.char) g.char.rrAction();
                 break;
             }
             case 'summon':   // 방장: 모두 내 곁으로
@@ -58,21 +73,22 @@
                 if (!g) return;
                 g.at = performance.now();
                 const keys = new Set((m.keys || []).map(Number));
-                g.order = g.order.filter(d => [...keys].some(k => DIR[k] === d));
-                for (const k of keys) if (DIR[k] && !g.order.includes(DIR[k])) g.order.push(DIR[k]);
-                g.dash = [...keys].some(k => DASH.has(k));
+                const dirs = [...keys].map(dirOf).filter(Boolean);
+                g.order = g.order.filter(d => dirs.includes(d));
+                for (const d of dirs) if (!g.order.includes(d)) g.order.push(d);
+                g.dash = [...keys].some(isDash);
                 break;
             }
         }
     }
 
     function setKey(g, vk, down) {
-        const d = DIR[vk];
+        const d = dirOf(vk);
         if (d) {
             g.order = g.order.filter(x => x !== d);
             if (down) g.order.push(d);   // 나중에 누른 방향이 먼저
         }
-        if (DASH.has(vk)) g.dash = down;
+        if (isDash(vk)) g.dash = down;
     }
 
     // 게임 스크립트(rpg_objects/rmmz_objects)가 다 읽힌 뒤 설치
