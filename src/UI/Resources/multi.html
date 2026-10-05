@@ -233,7 +233,12 @@ function countFail(id, p) {
 
 // 참가자가 연결을 청하면(want) 새로 만듦. 이전 연결은 닫고, 세션 번호(sid)로 늦게 온 옛 메시지를 걸러 냄.
 async function hostPeer(id) {
-  if (gated && !allowedIds.has(id)) { log("peer", id, "waits for the game check"); return; }
+  if (gated && !allowedIds.has(id)) {
+    // 아직 게임 확인 전: 참가자가 '연결 실패'로 세지 않도록 기다리라고 알림 (확인이 끝나면 RocketRPG가 retry를 보냄)
+    log("peer", id, "waits for the game check");
+    post({ t: "signal", to: id, data: { wait: "game" } });
+    return;
+  }
   if (!ensureTracks()) return;
   const old = peers.get(id);
   if (old) {
@@ -356,6 +361,7 @@ setInterval(async () => {
 
 // ───────────── 참가자: 방장 영상 받기 ─────────────
 let statusText = "", lastVideoAt = 0, hostId = "", attemptAt = -1e9, failCount = 0, linkSent = "", hostNat = "";
+let waitingGame = false;   // 방장이 스팀 게임 확인을 기다리라고 함 (연결 실패가 아님)
 const NL = String.fromCharCode(10);
 const VLAN_TIP = "ZeroTier·Tailscale·Radmin VPN 같은 가상 LAN을 방장과 같이 켜면 연결됩니다.";
 
@@ -396,11 +402,11 @@ setInterval(() => {
     if (st === "failed" || since > 3000) wantRestart(p);
     return;
   }
-  const retry = failCount < 1 ? 5000 : failCount < 2 ? 10000 : 30000;
+  const retry = waitingGame ? 10000 : failCount < 1 ? 5000 : failCount < 2 ? 10000 : 30000;
   // 연결 중(new/checking/connecting)이면 ICE 탐색을 너무 일찍 취소하지 않음
   const wait = st === "failed" || st === "closed" || st === "none" || st === "disconnected" ? retry : 35000;
   if (since < wait) return;
-  if (attemptAt > 0) failCount++;
+  if (attemptAt > 0 && !waitingGame) failCount++;
   reportLink();
   wantOffer();
 }, 1000);
@@ -427,17 +433,36 @@ function lowLatency(receiver) {
   try { receiver.playoutDelayHint = 0; } catch { }
 }
 
+// 방장 연결 후보는 내 응답을 보낸 뒤, 내 공인 주소 후보(srflx)가 나오거나 0.6초가 지나면 넣음.
+// 먼저 넣으면 같은 PC·LAN·가상 LAN 길로 바로 붙어 Chromium이 후보 찾기를 일찍 끝내, 공인 주소·TCP 후보가 빠지고
+// 내 네트워크 종류도 'UDP 막힘'으로 잘못 판단했습니다.
+async function addLateIce(p) {
+  const pc = p.pc;
+  await new Promise((resolve) => {
+    const done = () => { clearTimeout(t); pc.removeEventListener("icecandidate", onCand); pc.removeEventListener("icegatheringstatechange", onState); resolve(); };
+    const onCand = (e) => { if (e.candidate && e.candidate.type === "srflx") done(); };
+    const onState = () => { if (pc.iceGatheringState === "complete") done(); };
+    const t = setTimeout(done, 600);
+    pc.addEventListener("icecandidate", onCand);
+    pc.addEventListener("icegatheringstatechange", onState);
+    onState();
+  });
+  if (peers.get("host") !== p) return;
+  for (const c of p.pending.splice(0)) await pc.addIceCandidate(c).catch(() => { });
+}
+
 async function guestSignal(from, data) {
   let p = peers.get("host");
   if (typeof data.nat === "string") hostNat = data.nat.slice(0, 8);
+  if (data.wait === "game") { waitingGame = true; failCount = 0; attemptAt = performance.now(); reportLink(); return; }
+  if (data.sdp) waitingGame = false;
   if (data.sdp && data.sdp.type === "offer" && p && p.sid === data.sid && p.pc.signalingState !== "closed") {
     // 같은 연결의 ICE 재시작: 영상·채널은 그대로 두고 길만 새로 찾음
     await p.pc.setRemoteDescription(data.sdp);
-    for (const c of p.pending) await p.pc.addIceCandidate(c).catch(() => { });
-    p.pending = [];
     const answer = await p.pc.createAnswer();
     await p.pc.setLocalDescription({ type: "answer", sdp: stereo(answer.sdp) });
     post({ t: "signal", to: from, data: { sdp: p.pc.localDescription.toJSON(), sid: p.sid, nat: myNat } });
+    await addLateIce(p);
     return;
   }
   if (data.sdp && data.sdp.type === "offer") {
@@ -463,11 +488,10 @@ async function guestSignal(from, data) {
     pc.onicecandidate = (e) => { if (e.candidate) post({ t: "signal", to: from, data: { ice: e.candidate.toJSON(), sid } }); };
     pc.onconnectionstatechange = () => { log("host link", pc.connectionState); if (pc.connectionState === "connected") logRoute("host", pc); };
     await pc.setRemoteDescription(data.sdp);
-    for (const c of p.pending) await pc.addIceCandidate(c).catch(() => { });
-    p.pending = [];
     const answer = await pc.createAnswer();
     await pc.setLocalDescription({ type: "answer", sdp: stereo(answer.sdp) });
     post({ t: "signal", to: from, data: { sdp: pc.localDescription.toJSON(), sid, nat: myNat } });
+    await addLateIce(p);
   } else if (data.ice) {
     if (!p || p.sid !== data.sid) {
       if (p && Number(data.sid) <= Number(p.sid)) return;
@@ -598,9 +622,11 @@ function recvPart(from, data) {
   if (end < 2 || end > 256) return;
   let h;
   try { h = JSON.parse(data.slice(1, end)); } catch { return; }
-  if (typeof h.p !== "string" || h.p.length > 64 || !Number.isInteger(h.n) || h.n < 1 || h.n > 1400 ||
+  // 노트 이미지는 16MB까지 (base64로 약 22MB → 12000자 조각 약 1900개)
+  if (typeof h.p !== "string" || h.p.length > 64 || !Number.isInteger(h.n) || h.n < 1 || h.n > 4096 ||
       !Number.isInteger(h.i) || h.i < 0 || h.i >= h.n || data.length - end - 1 > PART) return;
   const now = performance.now();
+  // 30초 동안 조각이 하나도 오지 않은 것만 버림 (큰 GIF는 참가자가 많으면 30초 넘게 걸림)
   for (const [k, e] of partsIn) if (now - e.at > 30000) partsIn.delete(k);
   const key = from + ":" + h.p;
   let e = partsIn.get(key);
@@ -609,6 +635,7 @@ function recvPart(from, data) {
     partsIn.set(key, e = { n: h.n, got: 0, parts: [], at: now });
   }
   if (e.n !== h.n) return;
+  e.at = now;
   if (e.parts[h.i] === undefined) { e.parts[h.i] = data.slice(end + 1); e.got++; }
   if (e.got === e.n) { partsIn.delete(key); post({ t: "nrecv", from, data: e.parts.join("") }); }
 }
@@ -636,6 +663,7 @@ function closeAll() {
   peerFails.clear();
   reportBlocked();
   failCount = 0;
+  waitingGame = false;
   attemptAt = -1e9;
   linkSent = "";
   hostNat = "";
@@ -660,7 +688,7 @@ wv.addEventListener("message", (e) => {
         break;
       case "members": if (role === "host") setMembers(m.ids || [], m.gate); break;
       case "retry":   // 참가자: 게임 확인이 끝나 바로 다시 연결을 청함
-        if (role === "guest" && linkState() !== "connected") { failCount = 0; linkSent = ""; wantOffer(); }
+        if (role === "guest" && linkState() !== "connected") { failCount = 0; waitingGame = false; linkSent = ""; wantOffer(); }
         break;
       case "signal":
         queueSignal(m.from, m.data || {});
