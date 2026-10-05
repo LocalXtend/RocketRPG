@@ -1,6 +1,9 @@
 ﻿# RocketRPG 테스트 실행기
 #   .\run_tests.ps1          관리 코드 테스트 + 코어 단위 테스트 (수 초)
+#   .\run_tests.ps1 -Only multi,rgss   관리 코드 테스트 중 이름·분야가 맞는 것만 (목록: Phase1Tests.exe --list)
+param([string[]]$Only = @())
 $ErrorActionPreference = 'Stop'
+$Only = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ })   # pwsh -File 로 부르면 'a,b'가 한 문자열로 옴
 $root = Split-Path $PSScriptRoot -Parent
 Push-Location $root
 $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -14,7 +17,7 @@ if ($LASTEXITCODE -ne 0) { throw 'test build failed' }
 
 # 서로 독립적인 테스트는 동시에 실행합니다.
 $jobs = @(
-    @{ Name = 'managed';       Exe = 'src\Tests\bin\Debug\net10.0-windows\Phase1Tests.exe'; Args = @() },
+    @{ Name = 'managed';       Exe = 'src\Tests\bin\Debug\net10.0-windows\Phase1Tests.exe'; Args = @($Only) },
     @{ Name = 'test_core';     Exe = 'build\core\test_core.exe';     Args = @() }
 )
 
@@ -30,7 +33,8 @@ $procs = foreach ($j in $jobs) {
 foreach ($r in $procs) {
     if (-not $r.P.WaitForExit(600000)) { $r.P.Kill(); $fail += "$($r.Job.Name) (timeout)"; continue }
     $r.P.WaitForExit()
-    $tail = Get-Content $r.Log -Tail 3 -ErrorAction SilentlyContinue | Where-Object { $_ -match 'Results|VERDICT|PASS|FAIL|ok' } | Select-Object -Last 1
+    # -Tail은 로그에 UTF-8이 아닌 바이트가 섞이면 빈 값을 돌려줘서 끝까지 읽음
+    $tail = Get-Content $r.Log -ErrorAction SilentlyContinue | Select-Object -Last 3 | Where-Object { $_ -match 'Results|VERDICT|PASS|FAIL|ok' } | Select-Object -Last 1
     $status = if ($r.P.ExitCode -eq 0) { 'PASS' } else { $fail += $r.Job.Name; 'FAIL' }
     Write-Host ("  {0,-5} {1,-18} {2}" -f $status, $r.Job.Name, $tail)
 }
