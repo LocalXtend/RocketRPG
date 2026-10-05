@@ -182,28 +182,9 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>방 설정의 화질 → (초당 프레임, 최대 높이, 최대 비트레이트)</summary>
-    static (int fps, int maxHeight, int bitrate) MultiQuality(MultiRoomSettings s)
-    {
-        int fps = s.Fps >= 60 ? 60 : 30;
-        return s.Quality switch
-        {
-            "low" => (fps, 540, fps == 60 ? 1_800_000 : 1_200_000),
-            "high" => (fps, 1080, fps == 60 ? 8_000_000 : 5_000_000),
-            _ => (fps, 720, fps == 60 ? 4_000_000 : 2_500_000),
-        };
-    }
-
     /// <summary>참가자 화면 안내 글 ("" = 게임 중이라 영상을 보여 줌)</summary>
-    string MultiGuestStatus()
-    {
-        if (_multi == null) return "";
-        var room = _multi.Room;
-        return _multi.Reconnecting ? "연결이 끊겨 다시 연결하는 중..."
-            : room.HostAway ? "방장 연결이 끊겼습니다.\n1분 안에 돌아오지 않으면 방이 없어집니다."
-            : string.IsNullOrEmpty(room.Game) ? "방장이 게임을 켜기를 기다리는 중..."
-            : _ownGuestStatus;
-    }
+    string MultiGuestStatus() => _multi == null ? ""
+        : MultiPolicy.GuestStatus(_multi.Reconnecting, _multi.Room.HostAway, _multi.Room.Game, _ownGuestStatus);
 
     bool _multiSyncing, _multiSyncAgain;
 
@@ -292,7 +273,7 @@ public partial class MainWindow
                 _multiMembersSent = key;
                 PostMulti(JsonSerializer.Serialize(new { t = "members", ids = ids.Length == 0 ? Array.Empty<string>() : ids.Split(','), gate = _own.Required }));
             }
-            var (fps, _, bitrate) = MultiQuality(_multi.Room.Settings);
+            var (fps, _, bitrate) = MultiPolicy.Quality(_multi.Room.Settings);
             string q = $"{fps}/{bitrate}";
             if (q != _multiQualitySent)
             {
@@ -325,7 +306,7 @@ public partial class MainWindow
             _streamer.Start();
             UiLog.Write("multi: streaming started");
         }
-        var (fps, maxHeight, _) = MultiQuality(_multi!.Room.Settings);
+        var (fps, maxHeight, _) = MultiPolicy.Quality(_multi!.Room.Settings);
         _streamer.SetQuality(fps, maxHeight);
         // 게임이 직접 주는 화면 (채팅·핑이 섞이지 않음): 2000/2003은 Player 공유 메모리, MV/MZ는 게임 페이지
         string? feedName = ReferenceEquals(_currentBridge, _easyRpgRenderer) ? _easyRpgRenderer.FrameMemoryName : null;

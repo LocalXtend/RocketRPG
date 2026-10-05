@@ -263,7 +263,7 @@ public partial class MainWindow
     bool GuestHotkeyAllowed(string id) => _guestHotkeyLevel switch
     {
         0 => true,
-        1 => id is "ToggleNotes" or "MultiChat" or "Screenshot" or "ScreenshotToNote" || BarActions.Contains(id),
+        1 => id is "ToggleNotes" or "MultiChat" or "Screenshot" or "ScreenshotToNote" || MultiPolicy.BarActions.Contains(id),
         _ => id is "ToggleNotes" or "MultiChat" or "Screenshot" or "ScreenshotToNote",
     };
     readonly DispatcherTimer _nativeMouseTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };

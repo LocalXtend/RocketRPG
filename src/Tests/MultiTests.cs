@@ -108,4 +108,34 @@ public partial class Program
         var closed = MkxpAgentChannel.ParseChoice("7\u001F1\u001F");
         Assert("Engine choice end parses", !closed.Open && closed.Picked == 1);
     }
+
+    // 1.1.5: 멀티 규칙 (화질, 참가자 안내 글, 도구·ESP 권한)
+    private static void TestMultiPolicy()
+    {
+        Console.WriteLine("--- Testing MultiPolicy ---");
+        Assert("Normal quality is 720p 30fps", MultiPolicy.Quality(new MultiRoomSettings()) == (30, 720, 2_500_000));
+        Assert("High quality at 60fps", MultiPolicy.Quality(new MultiRoomSettings { Quality = "high", Fps = 60 }) == (60, 1080, 8_000_000));
+        Assert("Unknown fps falls back to 30", MultiPolicy.Quality(new MultiRoomSettings { Quality = "low", Fps = 45 }).fps == 30);
+
+        Assert("Reconnecting wins over everything", MultiPolicy.GuestStatus(true, true, "", "x").StartsWith("연결이 끊겨"));
+        Assert("Host away message", MultiPolicy.GuestStatus(false, true, "game", "").StartsWith("방장 연결이"));
+        Assert("No game: waiting for the host", MultiPolicy.GuestStatus(false, false, "", "").StartsWith("방장이 게임을"));
+        Assert("In game: ownership status (empty = show video)", MultiPolicy.GuestStatus(false, false, "game", "") == "");
+
+        Assert("Guest tools need control", !MultiPolicy.GuestToolsAllowed(false, false, false, true));
+        Assert("Guest tools hidden when the host streams", !MultiPolicy.GuestToolsAllowed(true, true, false, true));
+        Assert("Guest tools hidden in my streamer mode", !MultiPolicy.GuestToolsAllowed(true, false, true, true));
+        Assert("Guest tools need a running game", !MultiPolicy.GuestToolsAllowed(true, false, false, false));
+        Assert("Guest tools allowed", MultiPolicy.GuestToolsAllowed(true, false, false, true));
+
+        // ESP는 조종 권한과 상관없음 (1.1.5)
+        Assert("Host shares ESP without control", MultiPolicy.HostSharesEsp(espOn: true, hostStreamer: false, hasGuests: true));
+        Assert("Host does not share ESP in streamer mode", !MultiPolicy.HostSharesEsp(true, true, true));
+        Assert("No ESP share without guests", !MultiPolicy.HostSharesEsp(true, false, false));
+        Assert("Guest sees host ESP", MultiPolicy.GuestEspVisible(hostEsp: true, hostStreamer: false, hostRunning: true));
+        Assert("Guest hides ESP when the host streams", !MultiPolicy.GuestEspVisible(true, true, true));
+
+        Assert("Quick save is one-shot and a bar action", MultiPolicy.OneShotActions.Contains("QuickSave") && MultiPolicy.BarActions.Contains("QuickSave"));
+        Assert("Every one-shot action needs tool permission", MultiPolicy.OneShotActions.All(MultiPolicy.SharedActions.Contains));
+    }
 }

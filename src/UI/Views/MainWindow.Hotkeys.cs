@@ -45,7 +45,7 @@ public partial class MainWindow
         {
             // 참가자: 메시지 바 동작은 방장이 스트리머 모드만 아니면, 도구는 도구 권한이 있을 때만 방장에게 요청합니다.
             // 그 밖의 경우 false → 키가 조종 입력으로 방장 게임에 갑니다 (F키 등).
-            if (SharedActions.Contains(actionId) || BarActions.Contains(actionId)) return GuestToolsAllowed && SendGuestTool(actionId);
+            if (MultiPolicy.SharedActions.Contains(actionId) || MultiPolicy.BarActions.Contains(actionId)) return GuestToolsAllowed && SendGuestTool(actionId);
             if (actionId == "ToggleDataInspector") { if (!GuestToolsAllowed) return false; OnDataInspector(this, new RoutedEventArgs()); return true; }
             if (!HotkeyManager.IsAlwaysAvailable(actionId) && actionId is not ("Screenshot" or "ScreenshotToNote")) return false;
         }

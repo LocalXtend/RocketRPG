@@ -41,26 +41,15 @@ public partial class MainWindow
     bool HostStreamer => _guestTools?["streamer"]?.GetValue<bool>() ?? _multi?.Room.Settings.Streamer == true;
 
     /// <summary>참가자: 메시지 바 단추·도구(벽 통과·배속·ESP·변수 관리자 등)를 방장에게 요청할 수 있음 (조종 권한 + 방장 스트리머 끔)</summary>
-    bool GuestToolsAllowed => IsMultiGuest && _multi!.Room.Settings.Control && !HostStreamer &&
-        !_ctl.Settings.StreamerMode && _guestTools?["running"]?.GetValue<bool>() == true;
+    bool GuestToolsAllowed => IsMultiGuest && MultiPolicy.GuestToolsAllowed(_multi!.Room.Settings.Control, HostStreamer,
+        _ctl.Settings.StreamerMode, _guestTools?["running"]?.GetValue<bool>() == true);
 
     /// <summary>참가자: 방장 ESP를 내 화면에 그림 (방장이 ESP를 켜고 스트리머 모드가 아님, 게임 중)</summary>
-    bool GuestEspVisible => IsMultiGuest && !HostStreamer && _guestTools?["esp"]?.GetValue<bool>() == true &&
-        _guestTools?["running"]?.GetValue<bool>() == true;
+    bool GuestEspVisible => IsMultiGuest && MultiPolicy.GuestEspVisible(_guestTools?["esp"]?.GetValue<bool>() == true, HostStreamer,
+        _guestTools?["running"]?.GetValue<bool>() == true);
 
     /// <summary>메시지 바 단추도 도구와 같은 권한 (조종 권한이 없으면 '기록'만)</summary>
     bool GuestBarAllowed => GuestToolsAllowed;
-
-    /// <summary>도구 권한이 있어야 하는 요청</summary>
-    static readonly HashSet<string> SharedActions = ["QuickSave", "QuickLoad", "ForceSaveMenu", "ForceLoadMenu",
-        "ToggleNoclip", "ToggleEspOverlay", "ToggleAutoMessage", "ToggleSkipMessage",
-        "SpeedUp", "SpeedDown", "SpeedReset", "TogglePause", "ToggleMessageBar"];
-
-    /// <summary>메시지 바 단추 (단축키로도 요청할 수 있는 것)</summary>
-    static readonly HashSet<string> BarActions = ["ToggleAutoMessage", "ToggleSkipMessage", "AutoSpeed", "QuickSave", "QuickLoad"];
-
-    /// <summary>한 번 실행하는 요청 (켜기/끄기가 아니라 중복 실행을 막아야 함)</summary>
-    static readonly HashSet<string> OneShotActions = ["QuickSave", "QuickLoad", "ForceSaveMenu", "ForceLoadMenu"];
 
     /// <summary>참가자: 도구·메시지 바 동작을 방장에게 요청 (참가자가 아니면 false → 내 게임에서 실행)</summary>
     bool SendGuestTool(string action, double? value = null)
@@ -120,7 +109,7 @@ public partial class MainWindow
         bool streamer = _ctl.Settings.StreamerMode, control = _multi.Room.Settings.Control;
         string policyKey = $"{streamer}|{control}";
         if (policyKey != _toolPolicyKey) { _toolPolicyKey = policyKey; _toolPolicy++; }
-        bool tools = control && !streamer;
+        bool tools = MultiPolicy.HostSharesTools(control, streamer);
         var state = new JsonObject
         {
             ["op"] = "tools", ["hs"] = _toolsSession, ["policy"] = _toolPolicy, ["streamer"] = streamer, ["control"] = control,
@@ -137,7 +126,7 @@ public partial class MainWindow
         }
         // ESP는 보기만 하는 것이라 조종 권한과 상관없이 방장이 켜면 함께 봄 (스트리머 모드에서는 숨김)
         if (!streamer) state["esp"] = EspOverlayMenuItem.IsChecked;
-        UpdateEspShare(!streamer);
+        UpdateEspShare(streamer);
         string json = state.ToJsonString();
         if (to == "*")
         {
@@ -160,9 +149,9 @@ public partial class MainWindow
     /// 방장: ESP를 켰으면 참가자도 ESP를 봄 (조종 권한과 상관없음, 스트리머 모드에서는 숨김).
     /// 2000/2003·XP/VX/Ace는 게임이 그리는 ESP를 방송 화면에 함께 넣고, MV/MZ는 ESP 항목(위치·짧은 이름·종류)만 보냅니다.
     /// </summary>
-    void UpdateEspShare(bool allowed)
+    void UpdateEspShare(bool hostStreamer)
     {
-        bool share = allowed && EspOverlayMenuItem.IsChecked && _multi!.Members.Any(m => !m.Host);
+        bool share = MultiPolicy.HostSharesEsp(EspOverlayMenuItem.IsChecked, hostStreamer, _multi!.Members.Any(m => !m.Host));
         if (share == _espShared && ReferenceEquals(_espShareBridge, _currentBridge)) return;
         if (_espShareBridge is RocketRenderEasyRPG oe) oe.SetEspShare(false);
         else if (_espShareBridge is RocketRenderMKXP om) om.SetEspShare(false);
@@ -201,7 +190,7 @@ public partial class MainWindow
             if (_multi is { InRoom: true, IsHost: true })
             {
                 if (_currentBridge == null || !_multi.Members.Any(x => x.Id == from && !x.Host)) return true;
-                bool streamer = _ctl.Settings.StreamerMode, tools = _multi.Room.Settings.Control && !streamer;
+                bool streamer = _ctl.Settings.StreamerMode, tools = MultiPolicy.HostSharesTools(_multi.Room.Settings.Control, streamer);
                 // 권한이 바뀐 뒤에 도착한 요청은 버림 (예전 권한으로 누른 것)
                 if (m["policy"]?.GetValue<int>() is int policy && policy != _toolPolicy)
                 {
@@ -213,7 +202,7 @@ public partial class MainWindow
                     string action = m["action"]?.GetValue<string>() ?? "";
                     if (!tools) return true;
                     if (_vote.Open) { UiLog.Write($"multi: ignored {action} from {from} (choice vote open)"); return true; }
-                    if (OneShotActions.Contains(action))
+                    if (MultiPolicy.OneShotActions.Contains(action))
                     {
                         long req = m["req"]?.GetValue<long>() ?? 0;
                         if (req <= _toolReq.GetValueOrDefault(from)) return true;
