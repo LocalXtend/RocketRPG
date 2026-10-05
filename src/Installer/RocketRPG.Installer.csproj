@@ -10,7 +10,7 @@
     <RootNamespace>RocketRPG.Installer</RootNamespace>
     <ApplicationManifest>installer.manifest</ApplicationManifest>
     <ApplicationIcon>..\UI\Resources\RocketRPG.ico</ApplicationIcon>
-    <Version>1.1.4</Version>
+    <Version>1.1.5</Version>
     <DebugType>none</DebugType>
   </PropertyGroup>
 
