@@ -10,6 +10,22 @@ namespace RocketRPG.Tests;
 // 1.1.0 빠른 업데이트: zip 목록 읽기, 바뀐 파일 고르기, 받을 구간
 public partial class Program
 {
+    /// <summary>scripts\zip64_end.ps1과 같은 변환: 목록 뒤에 zip64 끝 기록·위치 기록, 원래 끝 기록은 최댓값</summary>
+    static byte[] ToZip64End(byte[] zip)
+    {
+        int at = zip.Length - 22;
+        ushort count = BitConverter.ToUInt16(zip, at + 10);
+        uint size = BitConverter.ToUInt32(zip, at + 12), offset = BitConverter.ToUInt32(zip, at + 16);
+        var ms = new MemoryStream();
+        ms.Write(zip, 0, at);
+        var w = new BinaryWriter(ms);
+        w.Write(0x06064b50u); w.Write(44UL); w.Write((ushort)45); w.Write((ushort)45); w.Write(0u); w.Write(0u);
+        w.Write((ulong)count); w.Write((ulong)count); w.Write((ulong)size); w.Write((ulong)offset);
+        w.Write(0x07064b50u); w.Write(0u); w.Write((ulong)at); w.Write(1u);
+        w.Write(0x06054b50u); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0xFFFF); w.Write((ushort)0xFFFF); w.Write(uint.MaxValue); w.Write(uint.MaxValue); w.Write((ushort)0);
+        return ms.ToArray();
+    }
+
     private static void TestDeltaUpdate()
     {
         Console.WriteLine("--- Testing DeltaUpdate (changed files only) ---");
@@ -44,6 +60,17 @@ public partial class Program
         Assert("Ranges end before the central directory", ranges.All(r => r.end <= cdOffset));
         Assert("Download size is far smaller than the zip when one file changes",
             DeltaUpdate.MakePlan(entries, cdOffset, e => e.Name != "a.txt").DownloadBytes < bytes.Length / 2);
+
+        // zip64 끝 기록 (1.1.3 포터블 zip): 옛 읽기는 못 찾고(→ 1.1.0~1.1.2는 전체 받기로), 새 읽기는 같은 목록을 찾음
+        byte[] z64 = ToZip64End(bytes);
+        Assert("Classic reader rejects zip64 end records (old clients fall back to full download)", DeltaUpdate.FindCentralDirectory(z64) == null);
+        var any = DeltaUpdate.FindCentralDirectoryAny(z64, 0);
+        Assert("zip64 end records are read", any is { } a64 && a64.cdOffset == cdOffset && a64.cdSize == cdSize && a64.count == count, any?.ToString() ?? "null");
+        var tail = z64.AsSpan(z64.Length - 100).ToArray();
+        Assert("zip64 end records are read from a tail slice", DeltaUpdate.FindCentralDirectoryAny(tail, z64.Length - 100) is { } t64 && t64.cdOffset == cdOffset);
+        Assert("Classic zips still read the same", DeltaUpdate.FindCentralDirectoryAny(bytes, 0) is { } c64 && c64.cdOffset == cdOffset && c64.count == count);
+        using (var zr = new ZipArchive(new MemoryStream(z64), ZipArchiveMode.Read))
+            Assert(".NET still opens the zip64-end zip", zr.Entries.Count == 4 && new StreamReader(zr.GetEntry("sub/b.txt")!.Open()).ReadToEnd() == "new content");
 
         string app = Path.Combine(Path.GetTempPath(), "rr_delta_test");
         Assert("Entry paths stay inside the app folder", DeltaUpdate.LocalPath(app, "../evil.dll") == null && DeltaUpdate.LocalPath(app, "C:/x.dll") == null &&

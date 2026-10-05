@@ -189,6 +189,9 @@ $payloadZip = Join-Path $dist 'payload.zip'
 Remove-Item -Force $zipFile, $payloadZip -ErrorAction SilentlyContinue
 [System.IO.Compression.ZipFile]::CreateFromDirectory($portable, $payloadZip, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 Copy-Item $payloadZip $zipFile -Force
+# 포터블 zip은 끝 기록을 zip64로 (1.1.0~1.1.2의 빠른 업데이트 오류를 피해 '전체 받기'로 가게; scripts\zip64_end.ps1 설명 참고)
+pwsh -NoProfile -File (Join-Path $PSScriptRoot 'zip64_end.ps1') $zipFile
+if ($LASTEXITCODE -ne 0) { throw 'zip64 end records failed' }
 
 $payloadDir = Join-Path $dist 'payload'
 Remove-Item -Recurse -Force $payloadDir -ErrorAction SilentlyContinue

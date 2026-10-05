@@ -61,9 +61,17 @@ public partial class UpdateProgressWindow : Window
         }
     }
 
-    /// <summary>진행 상황 (자주 불려도 화면은 0.1초에 한 번만 바꿈)</summary>
+    /// <summary>
+    /// 진행 상황 (자주 불려도 화면은 0.1초에 한 번만 바꿈). 압축 풀기·받기는 다른 스레드에서 알려 오므로
+    /// 화면은 늘 UI 스레드에서 바꿉니다 (1.1.0~1.1.2: 다른 스레드에서 바꾸다 '다른 스레드가 이 개체를 소유…' 오류로 업데이트 실패).
+    /// </summary>
     void Report(string status, long done, long total)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => Report(status, done, total));
+            return;
+        }
         long now = Environment.TickCount64;
         if (done < total && now - _lastUiTick < 100 && total > 0) return;
         _lastUiTick = now;

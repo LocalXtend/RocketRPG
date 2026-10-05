@@ -47,6 +47,32 @@ public static class DeltaUpdate
         return null;
     }
 
+    /// <summary>
+    /// zip 맨 끝 바이트(tail, 파일 안 시작 위치 tailStart)에서 목록 위치를 찾음. zip64 끝 기록도 읽습니다.
+    /// RocketRPG 1.1.3부터 포터블 zip은 끝 기록을 zip64로 씁니다: 1.1.0~1.1.2의 빠른 업데이트는 진행 창 오류로 실패하므로,
+    /// 그 버전이 zip64를 못 읽어 'zip 전체 받기'(오류가 없는 길)로 가게 하려는 것입니다.
+    /// </summary>
+    public static (long cdOffset, long cdSize, long count)? FindCentralDirectoryAny(ReadOnlySpan<byte> tail, long tailStart)
+    {
+        for (int i = tail.Length - 22; i >= 0; i--)
+        {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(tail[i..]) != 0x06054b50) continue;
+            long count = BinaryPrimitives.ReadUInt16LittleEndian(tail[(i + 10)..]);
+            long size = BinaryPrimitives.ReadUInt32LittleEndian(tail[(i + 12)..]);
+            long offset = BinaryPrimitives.ReadUInt32LittleEndian(tail[(i + 16)..]);
+            if (count != 0xFFFF && size != 0xFFFFFFFF && offset != 0xFFFFFFFF) return (offset, size, count);
+            // zip64: 바로 앞의 zip64 끝 기록 위치(locator) → zip64 끝 기록
+            int loc = i - 20;
+            if (loc < 0 || BinaryPrimitives.ReadUInt32LittleEndian(tail[loc..]) != 0x07064b50) return null;
+            long rec = (long)BinaryPrimitives.ReadUInt64LittleEndian(tail[(loc + 8)..]) - tailStart;
+            if (rec < 0 || rec + 56 > tail.Length || BinaryPrimitives.ReadUInt32LittleEndian(tail[(int)rec..]) != 0x06064b50) return null;
+            int r = (int)rec;
+            return ((long)BinaryPrimitives.ReadUInt64LittleEndian(tail[(r + 48)..]), (long)BinaryPrimitives.ReadUInt64LittleEndian(tail[(r + 40)..]),
+                    (long)BinaryPrimitives.ReadUInt64LittleEndian(tail[(r + 32)..]));
+        }
+        return null;
+    }
+
     /// <summary>zip 목록(central directory)을 항목들로</summary>
     public static List<ZipEntry> ParseCentralDirectory(ReadOnlySpan<byte> cd)
     {
@@ -63,10 +89,29 @@ public static class DeltaUpdate
             int extraLen = BinaryPrimitives.ReadUInt16LittleEndian(cd[(p + 30)..]);
             int commentLen = BinaryPrimitives.ReadUInt16LittleEndian(cd[(p + 32)..]);
             uint offset = BinaryPrimitives.ReadUInt32LittleEndian(cd[(p + 42)..]);
-            if (p + 46 + nameLen > cd.Length) break;
+            if (p + 46 + nameLen + extraLen > cd.Length) break;
             var enc = (flags & 0x800) != 0 ? Encoding.UTF8 : Encoding.Latin1;
             string name = enc.GetString(cd.Slice(p + 46, nameLen));
-            list.Add(new ZipEntry(name, crc, comp, size, method, offset));
+            long size64 = size, comp64 = comp, offset64 = offset;
+            // zip64 항목: 0xFFFFFFFF인 값은 추가 필드(0x0001)에 8바이트로 (원래 크기, 압축 크기, 위치 순)
+            if (size == 0xFFFFFFFF || comp == 0xFFFFFFFF || offset == 0xFFFFFFFF)
+            {
+                var extra = cd.Slice(p + 46 + nameLen, extraLen);
+                for (int e = 0; e + 4 <= extra.Length;)
+                {
+                    int id = BinaryPrimitives.ReadUInt16LittleEndian(extra[e..]), len = BinaryPrimitives.ReadUInt16LittleEndian(extra[(e + 2)..]);
+                    if (id == 0x0001)
+                    {
+                        int q = e + 4;
+                        if (size == 0xFFFFFFFF && q + 8 <= e + 4 + len) { size64 = (long)BinaryPrimitives.ReadUInt64LittleEndian(extra[q..]); q += 8; }
+                        if (comp == 0xFFFFFFFF && q + 8 <= e + 4 + len) { comp64 = (long)BinaryPrimitives.ReadUInt64LittleEndian(extra[q..]); q += 8; }
+                        if (offset == 0xFFFFFFFF && q + 8 <= e + 4 + len) offset64 = (long)BinaryPrimitives.ReadUInt64LittleEndian(extra[q..]);
+                        break;
+                    }
+                    e += 4 + len;
+                }
+            }
+            list.Add(new ZipEntry(name, crc, comp64, size64, method, offset64));
             p += 46 + nameLen + extraLen + commentLen;
         }
         return list;
@@ -154,6 +199,12 @@ public static class DeltaUpdate
     /// </summary>
     public static async Task<int> StageAsync(string url, long zipSize, string appDir, string staging, Progress report, CancellationToken ct)
     {
+        // 진행 알림은 부른 쪽 스레드(UI)로 돌려보냄: 압축 풀기·받기의 이어지는 처리는 다른 스레드에서 돕니다
+        if (SynchronizationContext.Current is { } ui)
+        {
+            var direct = report;
+            report = (s, d, t) => { if (SynchronizationContext.Current == ui) direct(s, d, t); else ui.Post(_ => direct(s, d, t), null); };
+        }
         using var http = NewClient();
         report("바뀐 파일을 확인하는 중...", 0, 0);
         int tailLen = (int)Math.Min(zipSize, 128 * 1024);
@@ -163,7 +214,7 @@ public static class DeltaUpdate
             using var resp = await GetRange(http, url, zipSize - tailLen, zipSize, ct);
             if (resp != null) tail = await resp.Content.ReadAsByteArrayAsync(ct);
         }
-        var dir = tail != null ? FindCentralDirectory(tail) : null;
+        var dir = tail != null ? FindCentralDirectoryAny(tail, zipSize - tail.Length) : null;
         if (tail == null || dir == null)
         {
             UiLog.Write("update: range requests unavailable, downloading the whole package");
