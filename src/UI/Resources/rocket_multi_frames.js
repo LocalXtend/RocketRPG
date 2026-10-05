@@ -26,13 +26,39 @@
     hdr[1] = (hdr[1] + 1) | 0;
   }
 
+  // 게임 안 동영상 (이벤트 '동영상 재생'): 캔버스 위에 따로 뜨는 <video>라 캔버스만 잡으면 참가자에게 보이지 않았음.
+  // 재생 중이면 그 영상을 게임 화면 크기에 맞춰(비율 유지, 남는 곳은 검게) 그려 보냅니다.
+  function playingMovie() {
+    try {
+      let v = null;
+      if (window.Video && typeof Video.isPlaying === "function" && Video.isPlaying()) v = Video._element;                     // MZ
+      else if (window.Graphics && typeof Graphics.isVideoPlaying === "function" && Graphics.isVideoPlaying()) v = Graphics._video;   // MV
+      return v && v.readyState >= 2 && v.videoWidth > 0 ? v : null;
+    } catch { return null; }
+  }
+
+  let movieCanvas = null, movieCtx = null;
+  function movieFrame(video, w, h) {
+    if (!movieCanvas) { movieCanvas = document.createElement("canvas"); movieCtx = movieCanvas.getContext("2d", { alpha: false }); }
+    if (movieCanvas.width !== w) movieCanvas.width = w;
+    if (movieCanvas.height !== h) movieCanvas.height = h;
+    movieCtx.fillStyle = "#000";
+    movieCtx.fillRect(0, 0, w, h);
+    const s = Math.min(w / video.videoWidth, h / video.videoHeight);
+    const dw = video.videoWidth * s, dh = video.videoHeight * s;
+    movieCtx.drawImage(video, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    return new VideoFrame(movieCanvas, { timestamp: 0 });
+  }
+
   function grab(canvas) {
     if (!hdr || hdr[7] <= 0 || busy || typeof VideoFrame !== "function") return;
     const now = performance.now();
     if (now - lastAt < 1000 / hdr[7] - 4) return;   // RocketRPG가 원하는 초당 장 수까지만
     lastAt = now;
     let frame;
-    try { frame = new VideoFrame(canvas, { timestamp: 0 }); } catch { return; }   // WebGL 그림은 그린 직후에만 남아 있음
+    const movie = playingMovie();
+    if (movie) { try { frame = movieFrame(movie, canvas.width, canvas.height); } catch { } }   // 못 그리면(다른 출처 영상 등) 게임 화면으로
+    if (!frame) { try { frame = new VideoFrame(canvas, { timestamp: 0 }); } catch { return; } }   // WebGL 그림은 그린 직후에만 남아 있음
     const w = frame.displayWidth, h = frame.displayHeight;
     if (!w || !h || w * h * 4 > slotBytes) { frame.close(); return; }
     busy = true;
