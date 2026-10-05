@@ -44,6 +44,10 @@ public partial class MainWindow
     bool GuestToolsAllowed => IsMultiGuest && _multi!.Room.Settings.Control && !HostStreamer &&
         !_ctl.Settings.StreamerMode && _guestTools?["running"]?.GetValue<bool>() == true;
 
+    /// <summary>참가자: 방장 ESP를 내 화면에 그림 (방장이 ESP를 켜고 스트리머 모드가 아님, 게임 중)</summary>
+    bool GuestEspVisible => IsMultiGuest && !HostStreamer && _guestTools?["esp"]?.GetValue<bool>() == true &&
+        _guestTools?["running"]?.GetValue<bool>() == true;
+
     /// <summary>메시지 바 단추도 도구와 같은 권한 (조종 권한이 없으면 '기록'만)</summary>
     bool GuestBarAllowed => GuestToolsAllowed;
 
@@ -128,11 +132,12 @@ public partial class MainWindow
         {
             state["speed"] = _currentBridge?.CurrentSpeed ?? 1;
             state["noclip"] = _currentBridge?.IsNoclip == true;
-            state["esp"] = EspOverlayMenuItem.IsChecked;
             state["paused"] = _currentBridge?.IsPaused == true;
             state["game"] = _currentBridge == null ? null : JsonSerializer.SerializeToNode(_currentBridge.LatestState);
         }
-        UpdateEspShare(tools);
+        // ESP는 보기만 하는 것이라 조종 권한과 상관없이 방장이 켜면 함께 봄 (스트리머 모드에서는 숨김)
+        if (!streamer) state["esp"] = EspOverlayMenuItem.IsChecked;
+        UpdateEspShare(!streamer);
         string json = state.ToJsonString();
         if (to == "*")
         {
@@ -152,12 +157,12 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// 방장: 도구 권한이 열려 있고 ESP를 켰으면 참가자도 ESP를 봄.
+    /// 방장: ESP를 켰으면 참가자도 ESP를 봄 (조종 권한과 상관없음, 스트리머 모드에서는 숨김).
     /// 2000/2003·XP/VX/Ace는 게임이 그리는 ESP를 방송 화면에 함께 넣고, MV/MZ는 ESP 항목(위치·짧은 이름·종류)만 보냅니다.
     /// </summary>
-    void UpdateEspShare(bool tools)
+    void UpdateEspShare(bool allowed)
     {
-        bool share = tools && EspOverlayMenuItem.IsChecked && _multi!.Members.Any(m => !m.Host);
+        bool share = allowed && EspOverlayMenuItem.IsChecked && _multi!.Members.Any(m => !m.Host);
         if (share == _espShared && ReferenceEquals(_espShareBridge, _currentBridge)) return;
         if (_espShareBridge is RocketRenderEasyRPG oe) oe.SetEspShare(false);
         else if (_espShareBridge is RocketRenderMKXP om) om.SetEspShare(false);
@@ -298,7 +303,7 @@ public partial class MainWindow
     /// <summary>참가자 (MV/MZ 방장): 방장 ESP 항목을 내 방송 화면 위에 그림</summary>
     void OnHostEsp(JsonObject m)
     {
-        if (!GuestToolsAllowed || _guestTools?["esp"]?.GetValue<bool>() != true || m["items"] is not JsonArray arr || arr.Count == 0)
+        if (!GuestEspVisible || m["items"] is not JsonArray arr || arr.Count == 0)
         {
             EspCanvas.Clear();
             return;
@@ -354,11 +359,8 @@ public partial class MainWindow
         foreach (var item in ToolMenu.Items.OfType<MenuItem>())
             if (item.Name.Contains("DataInspector")) item.IsEnabled = tools;
         ScreenMenu.IsEnabled = true;
-        if (!tools)
-        {
-            _dataInspectorWnd?.Close();
-            EspCanvas.Clear();
-        }
+        if (!tools) _dataInspectorWnd?.Close();
+        if (!GuestEspVisible) EspCanvas.Clear();
         AutoMessageMenuItem.IsChecked = B("auto"); SkipMessageMenuItem.IsChecked = B("skip");
         NoclipMenuItem.IsChecked = B("noclip"); EspOverlayMenuItem.IsChecked = B("esp"); TileInspectorMenuItem.IsChecked = false;
         ShowMessageBarMenuItem.IsChecked = B("showBar");
